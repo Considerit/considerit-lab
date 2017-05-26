@@ -1,0 +1,895 @@
+<script type="statebus"># -*- mode: coffee -*-
+
+bus.honk = false
+bus.dev_with_single_client = true
+
+
+
+##############
+# Styles
+##############
+
+focus_blue = '#2478CC'
+transparent_focus_blue = (opacity) -> 
+  "rgba(36, 120, 204, #{opacity})"
+feedback_orange = '#F19135'
+logo_red = "#B03A44"
+light_gray = '#afafaf'
+light_blue = '#F6F7F9'
+
+slider_color = '#999'
+index_bg = '#F5F5F5' #'#F4F6F8'
+attention_magenta = '#FF00A4'
+open_point_color = 'black' #focus_blue #'#A13A9E' #
+list_header_color = focus_blue #'#aaa' #focus_blue #'#D18042'
+
+
+avenir = 'Avenir Next W01, Avenir Next, Avenir, Helvetica, sans-serif'
+architect = 'Architects Daughter W00'
+
+list_styles = 
+  title: 
+    fontWeight: 400
+    fontSize: 42
+
+  heading1: 
+    # textTransform: 'uppercase'
+    color: list_header_color
+
+    fontSize: 32
+    fontWeight: 900
+
+    fontSize: 26
+    fontWeight: 400
+    fontFamily: architect
+
+  heading2: 
+    fontSize: 22
+    fontWeight: 500
+
+loc = fetch 'location'
+loc.url = '/point/proto_root'
+save loc 
+
+#########
+# Body: main content area
+
+include '/code/considerit/shared.coffee'
+include '/code/considerit/types.coffee'
+include '/code/considerit/slidergrams.coffee'
+include '/code/considerit/fickle.coffee', -> 
+  fickle.init (vars) -> 
+    gutter: 20 
+    max_width: 1000
+    indent: 23
+    collapsed_histo_height: 40
+    one_col: vars.window_width < 675
+
+dom.BODY = -> 
+
+  fetch 'include'
+
+  loc = fetch 'location'
+  root = loc.url
+
+  DIV
+    id: 'main-content' #used in sizewhenrendered
+    style:
+      fontFamily: avenir
+      fontSize: 16
+      position: 'relative'
+      #backgroundColor: '#eaeaea'
+
+    onClick: -> 
+      close_children()
+
+    LINK 
+      href: 'http://fast.fonts.net/cssapi/9cd0e917-fcb5-4c2e-8e1c-e6789e1fd413.css'
+      rel: 'stylesheet'
+      type: 'text/css'
+
+    DIV 
+      style: 
+        position: 'relative'
+        padding: '60px 44px 80px 100px'
+
+
+      POINT 
+        key: root
+        point: root
+        depth: 0
+
+    if TOOLTIP?
+      TOOLTIP key: 'tooltip'
+
+
+point_avatar_size = 40
+dom.POINT = -> 
+  collapsed = @props.collapsed
+
+  if !collapsed 
+    fetch "/all#{@props.point}"
+    return SPAN null if @loading()
+
+  pnt = fetch @props.point
+  depth = @props.depth 
+
+  w = text_width(pnt, 0) + opinion_width(pnt, 0) + fickle.gutter
+
+
+  if !@local.collapse_description? && !@loading() && !collapsed
+    s = sizeWhenRendered "<DIV class='embedded_html'>#{pnt.description}</div>",
+        fontSize: 21 
+
+    if s.height >= 300      
+      @local.description_collapsed = @local.collapse_description = true
+    else 
+      @local.collapse_description = false
+    save @local
+
+  histoheight = if collapsed then fickle.collapsed_histo_height else Math.min(300, Math.max(50, pnt.sliders?[0].opinions.length))
+
+  has_slidergram = pnt.sliders?.length > 0 
+
+  #draw_bubble = (depth > 0 || !has_slidergram) && !collapsed
+  draw_bubble = !collapsed
+  DIV 
+    style: 
+      position: 'relative'
+      left: -14 - 18 # for the margin between avatar and padding in the point bubble
+      marginBottom: if fickle.one_col then 18
+      marginLeft: 18
+      width: w
+
+    onClick: (e) =>
+      close_children pnt
+      e.stopPropagation()
+
+    if collapsed 
+      SPAN 
+        style: 
+          left: 8 - 18
+          position: 'absolute'
+          top: 19 - depth
+          verticalAlign: 'top'
+          display: if pnt.treat_authorless then 'none'
+
+        dangerouslySetInnerHTML:
+          __html: ['&#9632;', '&bull;', '&mdash;'][depth % 3]
+    else 
+      AVATAR
+        onClick: if !collapsed then (e) =>
+          toggle_point pnt, depth
+          e.stopPropagation()      
+        user: pnt.creator
+        hide_tooltip: true      
+        style: 
+          width: point_avatar_size
+          height: point_avatar_size
+          left: -point_avatar_size + (if collapsed then 12 else 0) - 18
+          position: 'absolute'
+          top: 18
+          verticalAlign: 'top'
+          display: if pnt.treat_authorless then 'none'
+          cursor: 'pointer'
+
+    DIV 
+      style:
+        position: 'relative'
+        display: 'inline-block'
+        verticalAlign: 'top'
+        width: if pnt.sliders?.length > 0 && !fickle.one_col then text_width(pnt, 0) else w
+
+      DIV
+        style:
+          backgroundColor: if draw_bubble then light_blue
+          border: '1px transparent' #parity with text area
+          padding: "10px 14px"
+          borderRadius: 16
+          boxSizing: 'border-box'
+          minHeight: if fickle.one_col then 0 else if !collapsed && pnt.sliders?.length > 0 then histoheight + 15 else fickle.collapsed_histo_height
+          boxShadow: if draw_bubble then '0 1px 2px 0px rgba(0,0,0,.4)'
+          wordWrap: 'break-word'
+          position: 'relative' 
+                        # positioning is to force Chrome to confine text
+                        # selections to within the element. 
+                        # http://stackoverflow.com/questions/14017818
+
+        DIV 
+          style: 
+            transform: "rotate(270deg) scaleY(1.3)"
+            WebkitTransform: "rotate(270deg) scaleY(1.3)"
+            position: 'absolute'
+            left: -17
+            top: 29
+            display: if pnt.treat_authorless || !draw_bubble then 'none'
+            pointerEvents: 'none'
+            #display: if @loading then 'none'
+
+
+          IMG 
+            style: 
+              width: 20
+              height: 15
+            type: 'image/svg+xml'
+            src: '/images/bubblemouth.svg'
+
+          # Bubblemouth 
+          #   apex_xfrac: 0
+          #   width: 20
+          #   height: 15
+          #   fill: light_blue
+          #   stroke_width: 0
+
+        if pnt.parent && depth == 0 
+          parent = fetch(pnt.parent)
+          DIV 
+            style:
+              position: 'absolute'
+              cursor: 'pointer'
+              left: -78
+              top: -46
+              fontSize: 18
+              color: light_gray
+            onClick: => 
+              loc = fetch 'location'
+              loc.url = parent.key
+              save loc
+              scrollTo(0,0)
+
+            SPAN 
+              style: 
+                paddingRight: 8
+              "<"
+            
+            "#{parent.summary.substring(0,30)}#{if parent.summary.length > 30 then '...' else ''}"
+
+        SPAN 
+          style: 
+            fontSize: 27 - depth * 3
+            fontWeight: 500
+            cursor: if depth > 0 then 'pointer'
+            borderBottom: "1px solid \
+                           #{if @local.hover && collapsed then 'black' else 'transparent'}"
+
+          onClick: (e) =>
+            @local.hover = false
+            toggle_point pnt, depth
+            e.stopPropagation()
+          onMouseEnter: if collapsed then => @local.hover = true; save(@local)
+          onMouseLeave: if collapsed then => @local.hover = false; save(@local)
+
+
+          pnt.summary
+          if pnt.description?.length > 0 && collapsed
+            SPAN 
+              dangerouslySetInnerHTML: { __html: '&hellip;'}
+              style: 
+                color: light_gray
+
+
+        DIV 
+          style: 
+            fontSize: Math.min(16, 27 - depth * 3 - 2)
+            color: light_gray
+            fontStyle: 'italic'
+
+          SPAN 
+            style:
+              paddingRight: 16
+
+            prettyDate pnt.created_at
+
+            if pnt.creator
+              SPAN 
+                style: {}
+                " by #{fetch(pnt.creator)?.name or 'Anonymous'}"
+
+
+          if pnt.children?.length > 0 && collapsed
+            SPAN 
+              style: {}
+
+              SPAN 
+                dangerouslySetInnerHTML: { __html: '&bull;'}
+                style: 
+                  paddingRight: 4
+              "#{pnt.children?.length}"
+
+          if !collapsed && depth > 0 
+            IMG 
+              src: '/images/expand.png'
+              title: 'Focus on this point'
+              style:
+                # position: 'absolute'
+                height: 16
+                width: 16
+                position: 'relative'
+                top: 2
+                # right: 5
+                # top: 5
+                cursor: 'pointer'
+                opacity: .3              
+              onClick: => 
+                loc = fetch 'location'
+                loc.url = pnt.key
+                save loc
+                scrollTo(0,0)
+
+
+        # Description
+        if pnt.description && !collapsed
+          collapse = !@local.collapse_description? || \
+                      @local.description_collapsed 
+
+          DIV 
+            style: 
+              paddingTop: 10
+              marginTop: 10
+
+            DIV 
+              className: 'embedded_html'
+              style:
+                fontSize: 18
+                maxHeight: if collapse then 300
+                overflow: if collapse then 'hidden'
+
+              RENDER_HTML
+                html: pnt.description
+
+            if @local.collapse_description
+              DIV 
+                style:
+                  backgroundColor: '#f6f7f9'
+                  cursor: 'pointer'
+                  #textAlign: 'center'
+                  padding: 8
+                  paddingLeft: 0
+                  color: focus_blue
+                  fontSize: 18
+                  #display: 'inline-block'
+                  marginTop: 4
+
+                onClick: (e) => 
+                  @local.description_collapsed = !@local.description_collapsed
+                  save @local
+                  e.stopPropagation()
+
+                if @local.description_collapsed
+                  SPAN 
+                    style: 
+                      textDecoration: 'underline'
+                    'Expand full text'
+                else 
+                  'Hide full text'
+
+
+    DIV
+      style: 
+        display: if !fickle.one_col then 'inline-block'
+        position: 'relative'
+        paddingLeft: if fickle.one_col then 14 else fickle.gutter
+        verticalAlign: if !collapsed then 'bottom'
+        bottom: if !collapsed && !fickle.one_col then 10
+
+        paddingTop: if fickle.one_col then 12
+        paddingBottom: if fickle.one_col then 12
+
+      for sldr in (pnt.sliders or [])
+        SLIDERGRAM
+          width: if fickle.one_col then w - 28 else opinion_width(pnt, 0)
+          height: histoheight
+          sldr: sldr
+          show_labels: true #!collapsed
+
+
+    # the rest...
+    if !collapsed
+      DIV 
+        style: 
+          position: 'relative'
+          left: 14 #if depth > 0 then fickle.indent else 14 #+ 18
+          marginTop: 35
+          # borderLeft: '1px solid #ddd'
+
+        # Sublists
+        DIV 
+          style: {}
+
+          for [type, children] in organize_children_by_type(pnt)
+            LIST
+              key: type.key or type
+              parent: pnt
+              type: type
+              points: children
+              depth: @props.depth
+              unfocused: false
+
+          # NEW_LIST
+          #   suggested_by: pnt
+
+        # if depth > 0 
+        #   HR
+        #     style: 
+        #       position: 'relative'
+        #       left: -fickle.indent
+        #       borderColor: light_gray
+        #       marginBottom: 50
+        #       borderStyle: 'dashed'
+
+
+
+
+dom.LIST = -> 
+  type = fetch @props.type  
+  return SPAN null if @loading()
+
+  if type.sliders?.length > 0
+    labels = resolve type.sliders[0], 'labels'
+  else 
+    labels = null 
+
+  collapse_list_length = 3
+
+
+  if !@local.collapsed?
+    @local.collapsed = @props.points?.length > collapse_list_length + 1
+    @local.toggled = false 
+
+  points = @props.points or []
+  total_points = points.length
+
+  if @local.collapsed
+    points = points.slice(0,collapse_list_length)
+
+  DIV 
+    style: 
+      marginTop: 20
+      marginBottom: 45
+      
+
+    DIV 
+      style: 
+        position: 'relative'
+      onMouseEnter: => @local.hover_heading = true; save @local 
+      onMouseLeave: => 
+        @local.hover_heading = @local.list_menu = false; save @local
+
+      DIV 
+        style: extend {}, list_styles.heading1,
+          fontSize: list_styles.heading1.fontSize - @props.depth * 2
+          marginBottom: 8
+          position: 'relative'
+
+        # if @props.depth > 0 
+        #   SPAN 
+        #     style: 
+        #       position: 'absolute'
+        #       left: -40
+        #       top: -4
+        #     dangerouslySetInnerHTML: 
+        #       __html: '&#x2937;'
+
+        SPAN 
+          onClick: => 
+            @local.toggled = !@local.toggled 
+            @local.collapsed = false
+            save @local 
+          style: 
+            cursor: 'pointer'
+
+          resolve_type(type, 'category') or 'Points'
+
+          if @local.toggled
+            SPAN 
+              style: 
+                display: 'inline-block'
+                marginLeft: 10
+                color: light_gray
+                fontFamily: avenir
+                fontSize: 18
+
+              "("
+
+              SPAN 
+                style: 
+                  textDecoration: 'underline'
+                "show #{total_points} items"
+              ")"
+
+    if !@local.toggled
+      DIV
+        style: 
+          marginTop: 0
+          position: 'relative'
+          left: fickle.indent
+
+        for pnt in (points)
+          POINT 
+            key: pnt.key or pnt 
+            point: pnt
+            depth: @props.depth + 1
+            collapsed: !is_point_open(pnt)
+
+
+        if !@local.collapsed
+          NEW_POINT
+            type: type
+            parent: @props.parent
+            depth: @props.depth + 1
+
+        else 
+          DIV 
+            style:
+              backgroundColor: '#f6f7f9'
+              cursor: 'pointer'
+              #textAlign: 'center'
+              padding: 8
+              marginLeft: -8
+              color: focus_blue
+              fontSize: 18
+              display: 'inline-block'
+              marginTop: 4
+
+            onClick: => 
+              @local.collapsed = false
+              save @local
+
+
+            "Show #{total_points - collapse_list_length} more"
+            SPAN 
+              style: 
+                color: '#777'
+              " or "
+            "add a new one"
+
+
+is_point_open = (pnt) -> 
+  fetch('open_points')[(pnt.key or pnt)]?
+
+toggle_point = (pnt, depth) -> 
+  open = fetch('open_points')
+  if open[pnt.key]?
+    delete open[pnt.key]
+  else
+    open[pnt.key] = depth or 0
+  save open
+
+get_open_children = (pnt) -> 
+  open = fetch('open_points')
+  pnt = fetch pnt 
+
+  open_children = []
+  for k,v of open 
+    if k != 'key'
+      ancestor = fetch k 
+      while ancestor.parent && ancestor = fetch(ancestor.parent)
+        if ancestor.key == pnt.key
+          open_children.push k 
+          continue 
+
+  open_children 
+
+
+close_children = (pnt) -> 
+  open = fetch('open_points')
+
+  if pnt 
+    pnt = fetch pnt 
+    open_children = get_open_children pnt 
+  else 
+    open_children = (k for k,v of open when k != 'key')
+
+  if open_children.length > 0 
+    for k in open_children
+      delete open[k]
+    save open
+
+
+
+##############
+# DATA ENTRY
+#############
+
+dom.NEW_POINT = -> 
+  type = @props.type.key or @props.type
+  you = your_key()
+  w = 500
+
+  depth = @props.depth
+
+  DIV 
+    style:
+      position: 'relative'
+      minHeight: 30
+      marginTop: 10
+
+    SPAN 
+      style: 
+        left: -24
+        position: 'absolute'
+        top: 6 - depth
+        verticalAlign: 'top'
+
+      dangerouslySetInnerHTML:
+        __html: ['&#9632;', '&bull;', '&mdash;'][depth % 3]
+
+
+    if !@local.editing
+      SPAN 
+        style: extend {}, list_styles.heading2,
+          fontSize: 24 - 2 * depth
+          #marginLeft: 68
+          color: focus_blue
+          cursor: 'pointer'
+          borderBottom: "1px solid #{focus_blue}"
+
+        onClick: (e) => 
+          @local.editing = true; save(@local)
+        
+        "Add new"
+
+    else 
+
+      DIV 
+        style: 
+          marginLeft: -9
+          display: 'inline-block'
+          width: w
+        TEXTAREA 
+          key: 'summary'
+          ref: 'summary'
+          pattern:'^.{3,}'
+          placeholder: "Summarize your point"
+          required:'required'
+          style: extend {}, list_styles.heading2,
+            width: w
+            border: "1px solid #eaeaea"
+            outline: 'none'
+            padding: '6px 8px'
+            resize: 'none'
+
+        GROWING_TEXTAREA
+          key: 'description'
+          ref: 'description'
+          placeholder: "Add details here (optional)"
+
+          style: 
+            fontSize: 16
+            padding: '6px 8px'
+            marginTop: 8
+            width: '100%'
+            minHeight: 40
+            border: '1px solid #eaeaea'   
+            outline: 'none'       
+
+        DIV 
+          style: 
+            marginTop: 8
+
+          SPAN 
+            style: 
+              backgroundColor: focus_blue
+              color: 'white'
+              cursor: 'pointer'
+              borderRadius: 16
+              padding: '4px 24px'
+              display: 'inline-block'
+              marginLeft: 12
+              float: 'right'
+
+            onClick: => 
+              create_point
+                parent: @props.parent
+                type: type
+                summary: @refs.summary.getDOMNode().value
+                description: @refs.description.getDOMNode().value 
+
+              @local.editing = false 
+              save @local
+
+            'Done'
+
+          SPAN 
+            style: 
+              color: '#888'
+              cursor: 'pointer'
+              float: 'right'
+              padding: '4px 0px'
+            onClick: => @local.editing = null; save(@local)
+            'cancel'
+
+          DIV style: clear: 'both'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+grid_unit = (pnt, depth) -> 
+  depth ||= 0
+
+  w = fickle.window_width - fickle.gutter - 200
+
+  w = Math.min w, fickle.max_width
+
+  if depth > 0
+    depth_cost = point_icon_size(pnt) + fickle.indent
+    w -= depth * depth_cost
+
+  w = Math.floor(w / 3) * 3 # round down to nearest 100 so we don't 
+                                # re-layout all the time
+  w / 8
+
+text_width = (pnt, depth) -> 
+  5 * grid_unit(pnt, depth) - fickle.gutter
+
+opinion_width = (pnt, depth) -> 3 * grid_unit(pnt, depth)
+
+
+
+
+
+
+######################
+# Style
+######################
+style = document.createElement "style"
+style.innerHTML =   """
+  * {box-sizing: border-box;}
+  html, body {margin: 0; padding: 0;}
+  .grab_cursor {
+    cursor: move;
+    cursor: grab;
+    cursor: ew-resize;
+    cursor: -webkit-grab;
+    cursor: -moz-grab;
+  } .grab_cursor:active {
+    cursor: move;
+    cursor: grabbing;
+    cursor: ew-resize;
+    cursor: -webkit-grabbing;
+    cursor: -moz-grabbing;
+  }
+
+  input, textarea {
+    line-height: 22px;
+  }
+
+  /**
+   * Eric Meyer's Reset CSS v2.0 
+  (http://meyerweb.com/
+  eric/tools/css/reset/)
+   * http://cssreset.com
+   */
+  html, body, div, span, applet, object, iframe,
+  h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+  a, abbr, acronym, address, big, cite, code,
+  del, dfn, em, img, ins, kbd, q, s, samp,
+  small, strike, strong, sub, sup, tt, var,
+  b, u, i, center,
+  dl, dt, dd, ol, ul, li,
+  fieldset, form, label, legend,
+  table, caption, tbody, tfoot, thead, tr, th, td,
+  article, aside, canvas, details, embed, 
+  figure, figcaption, footer, header, hgroup, 
+  menu, nav, output, ruby, section, summary,
+  time, mark, audio, video,
+  input, textarea {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font: inherit;
+    vertical-align: baseline;
+  }
+  /* HTML5 display-role reset for older browsers */
+  article, aside, details, figcaption, figure, 
+  footer, header, hgroup, menu, nav, section {
+    display: block;
+  }
+  body {
+    line-height: 1.4;
+  }
+  ol, ul {
+    list-style: none;
+  }
+  blockquote, q {
+    quotes: none;
+  }
+  blockquote:before, blockquote:after,
+  q:before, q:after {
+    content: '';
+    content: none;
+  }
+  table {
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+
+  .embedded_html ul li {
+    margin-left: 36px; 
+    list-style: disc outside;}
+
+  .embedded_html ol li {
+    margin-left: 36px; 
+    list-style: decimal outside;}
+
+  .embedded_html p {
+    margin: .5em 0; }
+
+  .embedded_html p:last-child {
+    margin-bottom: 0; }
+
+  .embedded_html strong, .embedded_html b {
+    font-weight: 600; }
+
+  .embedded_html i, .embedded_html emph {
+    font-style: italic; }
+
+  .embedded_html pre {
+    font-family: Courier New, Courier, Lucida Sans Typewriter, Lucida Typewriter, monospace; 
+    font-size: 16px;
+  }
+  """
+document.body.appendChild style
+
+
+# Earl.start_work
+#   history_aware_links: true
+#   root: location.pathname  # this isn't quite right...
+
+# Earl.load_page root.key.substring(1, root.key.length)
+
+#</script>
+
+<script>
+  var OFFLINE_DEV = true 
+  var LOCAL_STATEBUS = true
+
+  // The statebus server we will connect to. Read by statebus_client.
+  if (window.location.hostname == 'localhost')
+    statebus_server = 'http://localhost:9375'
+  else 
+    statebus_server = 'http://considerit.us:9375'
+    
+  
+  if (LOCAL_STATEBUS)
+    var statebus_client = "/considerit-local/node_modules/statebus/client.js"
+  else 
+    var statebus_client = "https://rawgit.com/invisible-college/statebus/master/client.js" 
+    
+  // External scripts to load
+  var scripts_to_load = [ 
+    '/vendor/d3.quadtree.js', 
+    '/vendor/md5.js',
+    //'/vendor/earl.js',
+    statebus_client
+  ]
+
+  for (script in scripts_to_load)
+    document.write("<script id=js-"+ script +  " src='" + scripts_to_load[script] + "' charset='utf-8'></script\>" )
+
+</script>

@@ -1,0 +1,870 @@
+<script type="statebus"># -*- mode: coffee -*-
+
+
+
+
+
+##############
+# Colors
+##############
+
+focus_blue = '#2478CC'
+transparent_focus_blue = (opacity) -> 
+  "rgba(36, 120, 204, #{opacity})"
+feedback_orange = '#F19135'
+logo_red = "#B03A44"
+light_gray = '#afafaf'
+
+slider_color = '#999'
+index_bg = '#F5F5F5' #'#F4F6F8'
+attention_magenta = '#FF00A4'
+
+list_styles = 
+  title: 
+    fontWeight: 600
+    lineHeight: 1.2
+    fontSize: 36
+    paddingBottom: 15
+  subtitle: 
+    fontStyle: 'italic'
+    fontSize: 16
+  heading1: 
+    fontSize: 40
+    fontWeight: 500
+    fontStyle: 'italic'
+    #fontWeight: 200
+
+  heading2: 
+    fontSize: 21
+    fontWeight: 500
+
+
+#root = fetch("/point/seattle2035v2")
+root = fetch("/point/livingvotersguide_1")
+
+
+
+
+#########
+# Body: main content area
+
+loc = fetch('location')
+loc.url = root.key
+save loc 
+
+dom.BODY = ->  
+  pnt = fetch root
+  
+  DIV
+    id: 'main-content' #used in sizewhenrendered
+    style:
+      fontFamily: 'Avenir Next W01' #, Avenir Next, Avenir, Helvetica, sans-serif'
+      fontSize: 16
+      position: 'relative'
+      padding: 100
+
+    LINK 
+      href: 'http://fast.fonts.net/cssapi/9cd0e917-fcb5-4c2e-8e1c-e6789e1fd413.css'
+      rel: 'stylesheet'
+      type: 'text/css'
+
+
+    if pnt.sliders?.length > 0
+      sldr = pnt.sliders[0]
+      histoheight = 300 #Math.min 150, 4 * (sldr.opinions or []).length + 20 
+
+      SLIDERGRAM
+        width: 374 #540 #1000
+        height: histoheight
+        sldr: sldr
+        base_thickness: 1
+        pnt: pnt
+
+
+
+    for child in pnt.children
+      child = fetch child 
+      if child.sliders?.length > 0
+        sldr = child.sliders[0]
+        histoheight = 170 #Math.min 150, 4 * (sldr.opinions or []).length + 20 
+
+        SLIDERGRAM
+          width: 540 #1000
+          height: histoheight
+          sldr: sldr
+          base_thickness: 1
+          pnt: child
+
+    TOOLTIP key: 'tooltip'
+
+
+#############
+# SLIDERGRAMS
+#############
+
+dom.SLIDERGRAM = ->     
+  thickness = @props.base_thickness or 1
+  base_color = @props.base_color or '#888'
+
+  labels = ['&mdash;', '+']
+
+  DIV 
+    style: 
+      marginBottom: 100
+
+    HISTOGRAM
+      width: @props.width 
+      height: @props.height
+      sldr: @props.sldr 
+
+    DIV # slider base
+      style :
+        width: @props.width
+        position: 'relative'
+        top: 1
+        borderTop: "#{thickness}px solid #{base_color}"
+        paddingBottom: 3
+
+      [DIV  
+        style: 
+          position: 'absolute'
+          left: -24
+          top: -12
+          color: base_color
+          fontWeight: 200
+
+        dangerouslySetInnerHTML: {__html: labels[0]}
+
+      # a plus pole
+      DIV  
+        style: 
+          position: 'absolute'
+          right: -24
+          top: -12
+          fontWeight: 200
+          color: base_color
+        dangerouslySetInnerHTML: {__html: labels[1]}
+      ]
+
+      HISTO_META 
+        sldr: @props.sldr
+        pnt: @props.pnt
+
+
+
+
+
+
+####
+# Histogram
+#
+# Controls the display of the users arranged on a histogram. 
+# 
+# The user avatars are arranged imprecisely on the histogram
+# based on the user's opinion, using a physics simulation. 
+
+dom.HISTOGRAM = -> 
+  sldr = fetch @props.sldr 
+  sldr.opinions ||= []
+
+  histocache = get_histocache sldr, @props.width, @props.height
+
+  you = your_key()
+  has_opined = you in (o.user for o in sldr.opinions)
+
+  avatar_style = 
+    position: 'absolute'
+    borderRadius: '50%'
+    backgroundColor: '#ccc'
+
+  avatar_transition = 
+    transition: "top .4s, left .4s, width .4s, height .4s"
+
+  DIV
+    key: 'histo'
+    ref: 'histo'
+    style:
+      width: @props.width
+      height: @props.height
+      position: 'relative'
+      userSelect: 'none'
+      border: '1px solid #eee'
+      borderBottom: 'none' 
+
+    onClick: => 
+      positionAvatars sldr, @props.width, @props.height
+
+    # Draw the avatars in the histogram. Placement will be determined later
+    # by the physics sim
+    for o in sldr.opinions
+      continue if !o.user 
+
+      is_you = o.user == you
+      sty = extend {}, avatar_style, (if is_you then {} else avatar_transition), 
+        # cached width/height/left/top
+        top: histocache.pos?[o.user]?[0] or 0
+        left: histocache.pos?[o.user]?[1] or 0
+        width: histocache.pos?[o.user]?[2] or 50
+        height: histocache.pos?[o.user]?[2] or 50
+
+      AVATAR
+        key: "histo-avatar-#{o.user}"
+        user: o.user
+        style: sty
+
+
+get_histocache = (sldr, width, height) ->
+  sldr = fetch sldr 
+  fetch "#{sldr.key.substring(1)}/histocache/#{width},#{height}"
+
+histocache_hash = (sldr, width, height) -> 
+  sldr = fetch sldr
+
+  opinions = sldr.opinions.slice()
+  opinions.sort (a,b) -> 
+    if a.user > b.user 
+      -1
+    else 
+      1
+
+  uniq = ( "#{o.user}:#{o.opinion.toFixed(4)}" for o in opinions) 
+  uniq.push "(#{width},#{height}})"
+
+  md5 JSON.stringify uniq
+
+######
+# Uses a d3-based physics simulation to calculate a reasonable layout
+# of avatars within a given area.
+
+window.positionAvatars = (sldr, width, height, save_callback) ->
+  histocache = get_histocache sldr, width, height
+  sldr = fetch sldr
+  opinions = sldr.opinions
+  r = calculateAvatarRadius width, height, sldr.opinions
+
+  # Check if system energy would be reduced if two nodes' positions would 
+  # be swapped. We square the difference in order to favor large differences 
+  # for one vs small differences for the pair.
+  energy_reduced_by_swap = (p1, p2) ->
+    # how much does each point covet the other's location, over their own?
+    p1_jealousy = (p1.x - p1.x_target) * (p1.x - p1.x_target) - \
+                  (p2.x - p1.x_target) * (p2.x - p1.x_target)
+    p2_jealousy = (p2.x - p2.x_target) * (p2.x - p2.x_target) - \
+                  (p1.x - p2.x_target) * (p1.x - p2.x_target) 
+    p1_jealousy + p2_jealousy
+
+  # Swaps the positions of two avatars
+  swap_position = (p1, p2) ->
+    swap_x = p1.x; swap_y = p1.y
+    p1.x = p2.x; p1.y = p2.y
+    p2.x = swap_x; p2.y = swap_y 
+
+
+  # One iteration of the simulation
+  tick = (alpha) ->
+    stable = true
+
+    ####
+    # Repel colliding nodes
+    # A quadtree helps efficiently detect collisions
+    q = quadtree(nodes)
+
+    for n in nodes 
+      q.visit collide(n, alpha)
+
+    for o, i in nodes
+      o.px = o.x
+      o.py = o.y
+
+      # Push node toward its desired x-position
+      o.x += alpha * (x_force_mult * width  * .001) * (o.x_target - o.x)
+
+      # Push node downwards
+      o.y += alpha * y_force_mult
+
+      #####
+      # Ensure bounds
+
+      # Ensure node is still within the bounding box
+      if o.x < o.radius
+        o.x = o.radius
+      else if o.x > width - o.radius
+        o.x = width - o.radius
+
+      if o.y < o.radius
+        o.y = o.radius
+      else if o.y > height - o.radius
+        o.y = height - o.radius
+
+
+      dy = Math.abs(o.py - o.y)
+      dx = Math.abs(o.px - o.x)
+      if Math.sqrt(dx * dx + dy * dy) > 1
+        stable = false
+        num_unstable += 1
+
+    # Complete the simulation if we've reached a steady state
+    stable
+
+  collide = (p1, alpha) ->
+
+    return (quad, x1, y1, x2, y2) ->
+      # console.profile('collide')
+      p2 = quad.point
+      if quad.leaf && p2 && p2 != p1
+        dx = Math.abs (p1.x - p2.x)
+        dy = Math.abs (p1.y - p2.y)
+        dist = Math.sqrt(dx * dx + dy * dy)
+        combined_r = p1.radius + p2.radius
+
+        # Transpose two points in the same neighborhood if it would reduce 
+        # energy of system
+        if energy_reduced_by_swap(p1, p2) > 0
+          swap_position(p1, p2)          
+
+        # repel both points equally in opposite directions if they overlap
+        if dist < combined_r
+          separate_by = if dist == 0 then 1 else ( combined_r - dist ) / combined_r
+          offset_x = (combined_r - dx) * separate_by
+          offset_y = (combined_r - dy) * separate_by
+
+          if p1.x < p2.x 
+            p1.x -= offset_x / 2
+            p2.x += offset_x / 2
+          else 
+            p2.x -= offset_x / 2
+            p1.x += offset_x / 2
+
+          if p1.y < p2.y           
+            p1.y -= offset_y * .5
+            p2.y += offset_y * .5
+          else 
+            p2.y -= offset_y * .5
+            p1.y += offset_y * .5
+
+      # Visit subregions if we could possibly have a collision there
+      neighborhood_radius = p1.radius
+      nx1 = p1.x - neighborhood_radius
+      nx2 = p1.x + neighborhood_radius
+      ny1 = p1.y - neighborhood_radius
+      ny2 = p1.y + neighborhood_radius
+
+      # console.profileEnd('collide')
+
+      return x1 > nx2 || 
+              x2 < nx1 ||
+              y1 > ny2 ||
+              y2 < ny1
+
+  ##############
+  # Initialize positions of each node
+  targets = {}
+
+
+  if true # if histocache isn't set
+    init = calculateInitialLayout width, height, r, opinions
+
+  nodes = opinions.map (o, i) ->
+    x_target = o.opinion * width
+
+    if targets[x_target]
+      if x_target > .98
+        x_target -= .1 * Math.random() 
+      else if x_target < .02
+        x_target += .1 * Math.random() 
+
+    targets[x_target] = 1
+
+    # previous simulation run set position...
+    if false && histocache.pos?[o.user]
+      x = histocache.pos[o.user][1] + r
+      y = histocache.pos[o.user][0] + r
+
+    else 
+      x = x_target
+      y = height - init[o.user] - r
+      #x = x_target
+      #y = height - r
+
+
+    return {
+      index: i
+      radius: r
+      x: x
+      y: y
+      x_target: x_target
+      user: o.user
+    }
+
+  ###########
+  # run the simulation
+  stable = false
+  decay = .8
+  min_alpha = 0.0000001
+  x_force_mult = 2
+  y_force_mult = 6
+  ticks = 0
+  alpha = if false && histocache.pos? then .5 else .8
+
+  num_unstable = 0
+
+  histometa = 
+    key: "histometa#{sldr.key}"
+
+  ticks_per_timeout = 3
+
+  next = -> 
+
+    setTimeout -> 
+      ticks += 1
+      while ticks % ticks_per_timeout != ticks_per_timeout - 1
+
+        num_unstable = 0
+        stable = tick alpha
+        alpha *= decay
+        ticks += 1
+
+        extend histometa, 
+          stable: stable 
+          alpha: alpha
+          ticks: ticks
+          unstable: num_unstable / opinions.length
+
+        save histometa
+
+        if stable || alpha <= min_alpha
+          break
+
+
+      if stable || alpha <= min_alpha
+        done()
+      else 
+        done()
+        next()
+
+    , 100
+
+  next()
+
+
+  done = -> 
+    if !save_callback || save_callback(nodes)
+      # cache positions
+      histocache = get_histocache sldr, width, height
+      hash = histocache_hash sldr, width, height
+      histocache.hash = hash
+      histocache.pos = {}
+      for opinion,i in sldr.opinions
+        r = nodes[i].radius
+        histocache.pos[opinion.user] = [nodes[i].y - r, nodes[i].x - r, 2 * r]
+
+      save histocache
+
+
+calculateInitialLayout = (w, h, r, opinions) -> 
+  assignments = {}
+  grid = {}
+
+  r = 2 * r
+  rows = Math.floor h / r
+  console.log {rows, h, r, w}
+  for o in opinions 
+    col = Math.floor o.opinion * w / r
+    if !grid[col]?
+      grid[col] = (0 for row in [0..rows])
+
+    least_crowded_cell = null 
+    least_crowded_cnt = Infinity
+    for num,row in grid[col]
+      if num == 0 
+        # assign immediately
+        least_crowded_cell = row
+        break 
+      else if num < least_crowded_cnt
+        least_crowded_cnt = num 
+        least_crowded_cell = row 
+
+    grid[col][least_crowded_cell] += 1
+    assignments[o.user] = least_crowded_cell * r
+
+  assignments
+
+
+#####
+# Calculate node radius based on the largest density of avatars in an 
+# area (based on a moving average of # of opinions, mapped across the
+# width and height)
+
+calculateAvatarRadius = (width, height, opinions) -> 
+
+  opinions.sort (a,b) -> a.opinion - b.opinion
+
+  # first, calculate a moving average of the number of opinions
+  # across around all possible stances
+  window_size = .1
+  avg_inc = .01
+  moving_avg = []
+  idx = 0
+  stance = 0
+  sum = 0
+
+  while stance <= 1.0
+
+    o = idx
+    cnt = 0
+    while o < opinions.length
+
+      if opinions[o].opinion < stance - window_size
+        idx = o
+      else if opinions[o].opinion > stance + window_size
+        break
+      else 
+        cnt += 1
+
+      o += 1
+
+    moving_avg.push cnt
+    stance += avg_inc
+    sum += cnt
+
+  # second, calculate the densest area of opinions, operationalized
+  # as the region with the most opinions amongst all regions of 
+  # opinion space that have contiguous above average opinions. 
+  dense_regions = []
+  avg_of_moving_avg = sum / moving_avg.length
+
+
+  current_region = []
+  for avg, idx in moving_avg
+    reset = idx == moving_avg.length - 1
+    if avg >= avg_of_moving_avg
+      current_region.push idx
+    else
+      reset = true
+
+    if reset && current_region.length > 0
+      dense_regions.push [current_region[0] * avg_inc - window_size , \
+                    idx * avg_inc + window_size ]      
+      current_region = []
+
+  max_region = null
+  max_opinions = 0
+  for region in dense_regions
+    cnt = 0
+    for o in opinions
+      if o.opinion >= region[0] && \
+         o.opinion <= region[1] 
+        cnt += 1
+    if cnt > max_opinions
+      max_opinions = cnt
+      max_region = region
+
+  # Third, calculate the avatar radius we'll use. It is based on 
+  # trying to fill ratio_filled of the densest area of the histogram
+  ratio_filled = .75
+  if max_opinions > 1
+    effective_width = width * Math.abs(max_region[0] - max_region[1]) / 2
+    area_per_avatar = ratio_filled * effective_width * height / max_opinions
+    r = Math.sqrt(area_per_avatar) / 2
+  else 
+    r = Math.sqrt(width * height / opinions.length * ratio_filled) / 2
+
+  r = Math.min(r, width / 2, height / 2)
+
+  r
+
+
+
+dom.HISTO_META = -> 
+  histometa = fetch "histometa#{@props.sldr.key or @props.sldr}"
+
+  DIV 
+    style: 
+      marginTop: 20
+
+    @props.sldr.key
+    ": "
+    fetch(@props.pnt).summary
+
+    for k,v of histometa
+      if k != 'key'
+        DIV 
+          style: {}
+          "#{k}: #{v}"
+
+
+dom.AVATAR = -> 
+  return SPAN null if !@props.user
+
+  @props.style ||= {}
+  if !@props.style.height?
+    @props.style.height = 50
+  if !@props.style.width?
+    @props.style.width = 50
+
+  @props.style.display ||= 'inline-block'
+  @props.hide_tooltip ||= false
+  @props.key ||= "avatar-#{@props.user.key or @props.user}"
+
+  add_initials = if !@props.add_initials? then true else @props.add_initials
+
+  user = fetch(@props.user)
+
+  extend @props,
+    'data-user': @props.user
+    'data-showtooltip': !@props.hide_tooltip
+
+  name = (user.name || 'Anonymous').split(' ')
+  if @props.hide_tooltip && !user.key == your_key()
+    @props.title = name
+
+  if user.avatar 
+    @props.src ||= user.avatar
+    IMG @props
+  else
+    @props.style.backgroundColor ||= '#62B39D'
+
+    if add_initials
+      @props.style.textAlign = 'center'
+      if name == 'Anonymous'
+        name = '?'
+      if name.length > 1
+        name = "#{name[0][0]}#{name[1][0]}"
+      else 
+        name = "#{name[0][0]}"
+
+      ff = 'monaco,Consolas,"Lucida Console",monospace'
+
+    SPAN @props, 
+
+      SPAN 
+        key: 'initials'
+        style: 
+          color: 'white'
+          pointerEvents: 'none'
+          fontSize: @props.style.width / 2
+          display: 'block'
+          position: 'relative'
+          fontFamily: ff
+          #top: style.height / 2 - initials_size.height
+          padding: @props.style.width / 4
+        name
+
+
+
+
+
+
+
+##########
+# Performance hack.
+# Was seeing major slowdown on pages with lots of avatars simply because we
+# were attaching a mouseover and mouseout event on each and every Avatar for
+# the purpose of showing a tooltip name. So we use event delegation instead. 
+document.addEventListener "mouseover", (e) ->
+  if e.target.getAttribute('data-user') && \
+     e.target.getAttribute('data-showtooltip') == 'true'
+    user = fetch(e.target.getAttribute('data-user'))
+    name = fetch(user).name
+    create_tooltip name, e.target
+
+document.addEventListener "mouseout", (e) ->
+  if e.target.getAttribute('data-user') && \
+     e.target.getAttribute('data-showtooltip') == 'true'
+    clear_tooltip()
+
+dom.TOOLTIP = -> 
+  tooltip = fetch('tooltip')
+  return SPAN(null) if !tooltip.coords
+
+  coords = tooltip.coords
+  tip = tooltip.tip
+
+  style = 
+    fontSize: 16
+    padding: '2px 4px'
+    borderRadius: 8
+    #whiteSpace: 'nowrap'
+    maxWidth: 200
+
+  size = sizeWhenRendered(tip, style)
+
+  # place the tooltip above the element
+  extend style, 
+    top: coords.top - size.height - 9
+    left: coords.left - size.width / 2
+    pointerEvents: 'none'
+    zIndex: 9999
+    color: '#999'
+    backgroundColor: '#f6f6f6'
+    position: 'absolute'
+
+  DIV
+    style: style
+    dangerouslySetInnerHTML: {__html: tip}
+
+create_tooltip = (tip, target) -> 
+  pos = target.getBoundingClientRect()
+  tooltip = extend fetch('tooltip'),
+    tip: tip
+    coords: 
+      top: pos.top + window.scrollY
+      left: pos.left + pos.width / 2
+  save tooltip 
+
+clear_tooltip = ->
+  tooltip = fetch 'tooltip'
+  tooltip.coords = null
+  tooltip.tip = null
+  save tooltip
+
+window.extend = (obj) ->
+  obj ||= {}
+  for arg, idx in arguments 
+    if idx > 0
+      for own name,s of arg
+        if !obj[name]? || obj[name] != s
+          obj[name] = s
+  obj
+
+window.defaults = (obj) ->
+  obj ||= {}
+  for arg, idx in arguments by -1
+    if idx > 0
+      for own name,s of arg
+        if !obj[name]?
+          obj[name] = s
+  obj
+
+# Computes the width/height of some text given some styles
+size_cache = {}
+window.sizeWhenRendered = (str, style) -> 
+  main = document.getElementById('main-content')
+
+  return {width: 0, height: 0} if !main
+
+  style ||= {}
+  # This DOM manipulation is relatively expensive, so cache results
+  style.str = str
+  key = JSON.stringify style
+  delete style.str
+
+  if key not of size_cache
+    style.display ||= 'inline-block'
+
+    test = document.createElement("span")
+    test.innerHTML = "<span>#{str}</span>"
+    for k,v of style
+      test.style[k] = v
+
+    main.appendChild test 
+    h = test.offsetHeight
+    w = test.offsetWidth
+    main.removeChild test
+
+    size_cache[key] = 
+      width: w
+      height: h
+
+  size_cache[key]
+
+
+your_key = -> fetch('ls/you').user
+
+you = -> fetch(your_key())
+
+
+######################
+# Actions on page load
+######################
+  
+  
+window.onload = -> 
+  style = document.createElement "style"
+  style.innerHTML =   """
+    * {box-sizing: border-box;}
+    html, body {margin: 0; padding: 0;}
+    .grab_cursor {
+      cursor: move;
+      cursor: grab;
+      cursor: ew-resize;
+      cursor: -webkit-grab;
+      cursor: -moz-grab;
+    } .grab_cursor:active {
+      cursor: move;
+      cursor: grabbing;
+      cursor: ew-resize;
+      cursor: -webkit-grabbing;
+      cursor: -moz-grabbing;
+    }
+
+    /**
+     * Eric Meyer's Reset CSS v2.0 
+    (http://meyerweb.com/
+    eric/tools/css/reset/)
+     * http://cssreset.com
+     */
+    html, body, div, span, applet, object, iframe,
+    h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+    a, abbr, acronym, address, big, cite, code,
+    del, dfn, em, img, ins, kbd, q, s, samp,
+    small, strike, strong, sub, sup, tt, var,
+    b, u, i, center,
+    dl, dt, dd, ol, ul, li,
+    fieldset, form, label, legend,
+    table, caption, tbody, tfoot, thead, tr, th, td,
+    article, aside, canvas, details, embed, 
+    figure, figcaption, footer, header, hgroup, 
+    menu, nav, output, ruby, section, summary,
+    time, mark, audio, video,
+    input, textarea {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      font-size: 100%;
+      font: inherit;
+      vertical-align: baseline;
+    }
+    /* HTML5 display-role reset for older browsers */
+    article, aside, details, figcaption, figure, 
+    footer, header, hgroup, menu, nav, section {
+      display: block;
+    }
+    body {
+      line-height: 1.4;
+    }
+    ol, ul {
+      list-style: none;
+    }
+
+
+}
+    """
+  document.body.appendChild style
+
+
+#</script>
+
+<script>
+  var OFFLINE_DEV = true 
+  var LOCAL_STATEBUS = true
+
+  // The statebus server we will connect to. Read by statebus_client.
+  statebus_server = 'http://localhost:9375'
+  
+  if (LOCAL_STATEBUS)
+    var statebus_client = "/considerit-local/node_modules/statebus/client.js"
+  else 
+    var statebus_client = "https://rawgit.com/invisible-college/statebus/master/client.js" 
+    
+  // External scripts to load
+  var scripts_to_load = [ 
+    '/vendor/d3.quadtree.js',
+    '/vendor/md5.js',  
+    statebus_client
+  ]
+
+  for (script in scripts_to_load)
+    document.write("<script src='" + scripts_to_load[script] + "' charset='utf-8'></script\>" )
+
+</script>

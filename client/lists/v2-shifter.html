@@ -1,0 +1,400 @@
+<script type="statebus"># -*- mode: coffee -*-
+
+bus.honk = false
+bus.dev_with_single_client = false
+
+
+include '/code/considerit/shared.coffee', -> css_reset()
+include '/code/considerit/types.coffee'
+include '/code/considerit/slidergrams.coffee'
+
+include '/code/earl.coffee', -> 
+  Earl.start_work
+    history_aware_links: true
+
+include '/code/considerit/fickle.coffee', -> 
+  fickle.init (vars) -> 
+    gutter: 20 
+    max_text_width: 650
+    indent: 53
+    collapsed_histo_height: 40
+    bubble_padding: 16
+
+dom.BODY = -> 
+
+  fetch 'include'
+
+  loc = fetch 'location'
+  slug =  if !loc.url || loc.url == '/' 
+            'proto_root' 
+          else
+            loc.url.replace(/\/$/, '')
+  root = fetch "/point/#{slug}"
+
+  DIV
+    id: 'main-content' #used in sizewhenrendered
+    style:
+      fontFamily: avenir
+      fontSize: 16
+      position: 'relative'
+      backgroundColor: if root.parent then feedback_orange
+      
+    onClick: if root.parent then -> 
+      Earl.load_page root.parent.substring(7)
+
+    SPAN 
+      style:
+        position: 'fixed'
+        top: 0
+        left: 10
+        color: 'white'
+        fontSize: 26
+        cursor: 'pointer'
+      dangerouslySetInnerHTML:
+        __html: '&#8598;'
+
+
+    project_fonts() if project_fonts?
+    DIV 
+      style: 
+        position: 'relative'
+        padding: '60px 44px 80px 44px'
+        marginLeft: 56
+        backgroundColor: 'white'
+
+      onClick: (e) -> 
+        close_children()
+        e.stopPropagation()
+
+      POINT 
+        key: root.key
+        point: root
+        depth: 0
+
+    if TOOLTIP?
+      TOOLTIP key: 'tooltip'
+
+dom.POINT = -> 
+  collapsed = @props.collapsed
+
+  pnt = fetch @props.point
+  depth = @props.depth 
+
+  w = working_width(depth) + fickle.gutter
+
+  open_children = get_open_children(pnt)
+  if open_children.length > 0
+    open_child = open_children[open_children.length - 1]
+
+
+  minimize = !@props.minimized && collapsed && get_open_children(pnt.parent).length > 0
+  DIV 
+    style: 
+      position: 'relative'
+      left: -fickle.bubble_padding # for the padding in the point bubble
+      marginBottom: 9
+      width: w
+      #opacity: if minimize then .15
+
+    onClick: (e) =>
+      close_children pnt
+      e.stopPropagation()
+
+    # point description
+    DIV 
+      style:
+        position: 'relative'
+        display: 'inline-block'
+        verticalAlign: 'top'
+        width: w
+
+      POINT_DESCRIPTION
+        pnt: pnt
+        depth: depth
+        collapsed: collapsed
+
+    # sublists
+    if !collapsed
+      DIV 
+        style: 
+          position: 'relative'
+          marginTop: 35
+
+        for [type, children] in organize_children_by_type(pnt)
+          if open_child
+            contains_open_child = false 
+            for c in (children or []) 
+              if open_child == (c.key or c)
+                contains_open_child = true 
+
+          LIST
+            key: type.key or type
+            parent: pnt
+            type: type
+            points: children
+            depth: @props.depth
+            unfocused: false
+            minimize: open_child && !contains_open_child
+
+dom.LIST = -> 
+  type = fetch @props.type  
+  return SPAN null if @loading()
+
+  points = @props.points or []
+
+  DIV 
+    style: 
+      marginTop: 20
+      marginBottom: 45
+      position: 'relative'
+      left: fickle.indent
+      #opacity: if @props.minimize then .15
+
+    DIV 
+      style: extend {}, list_styles.list_header(@props.depth),
+        marginBottom: 8
+        position: 'relative'
+
+      resolve_type(type, 'category') or 'Points'
+
+    DIV
+      style: 
+        marginTop: 0
+        position: 'relative'
+
+      for pnt in (points)
+        POINT 
+          key: pnt.key or pnt 
+          point: pnt
+          depth: @props.depth + 1
+          collapsed: !is_point_open(pnt)
+          minimized: @props.minimize
+
+dom.POINT_DESCRIPTION = -> 
+  collapsed = @props.collapsed
+  pnt = @props.pnt 
+  min_height = @props.min_height 
+  depth = @props.depth 
+
+  point_avatar_size = 40 - 5 * depth
+
+  DIV
+    style:
+      padding: "10px #{fickle.bubble_padding}px"
+      borderRadius: 16
+      boxSizing: 'border-box'
+      wordWrap: 'break-word'
+      position: 'relative' 
+                    # positioning is to force Chrome to confine text
+                    # selections to within the element. 
+                    # http://stackoverflow.com/questions/14017818
+
+    # Summary
+    SPAN 
+      id: pnt.key
+      style: extend {}, list_styles.point_header(depth),
+        cursor: if depth > 0 then 'pointer'
+        borderBottom: "1px solid \
+                       #{if @local.hover && collapsed then 'black' else 'transparent'}"
+      onClick: (e) =>
+        @local.hover = false
+        toggle_point pnt, depth, pnt.key
+        e.stopPropagation()
+
+      onMouseEnter: if collapsed then => @local.hover = true; save(@local)
+      onMouseLeave: if collapsed then => @local.hover = false; save(@local)
+
+
+      pnt.summary
+      if pnt.description?.length > 0 && collapsed
+        SPAN 
+          dangerouslySetInnerHTML: { __html: '&hellip;'}
+          style: 
+            color: light_gray
+
+    # Meta data
+    DIV 
+      style: 
+        fontSize: Math.min(16, 27 - depth * 3 - 2)
+        color: light_gray
+        fontStyle: 'italic'
+
+      SPAN 
+        style:
+          paddingRight: 16
+
+        prettyDate pnt.created_at
+
+        if pnt.creator
+          SPAN 
+            style: {}
+            " by #{fetch(pnt.creator)?.name or 'Anonymous'}"
+
+
+      if pnt.children?.length > 0 && collapsed
+        SPAN null, 
+          SPAN 
+            dangerouslySetInnerHTML: { __html: '&bull;'}
+            style: 
+              paddingRight: 4
+          "#{pnt.children?.length}"
+
+    # Description
+    if pnt.description && !collapsed
+      DIV 
+        style: 
+          paddingTop: 10
+          marginTop: 10
+
+        DIV 
+          style: list_styles.point_text(depth)
+
+          RENDER_HTML
+            html: pnt.description
+
+
+working_width = (depth) -> 
+  fickle.window_width - fickle.gutter - 144 - depth * (fickle.indent - fickle.bubble_padding)
+
+text_width = (pnt, depth) -> 
+  Math.min (fickle.window_width - fickle.gutter - 144 ) - \
+          depth * (fickle.indent - fickle.bubble_padding), \
+          fickle.max_text_width - depth * (fickle.indent - fickle.bubble_padding)
+  
+
+is_point_open = (pnt) -> 
+  fetch('open_points')[(pnt.key or pnt)]?
+
+toggle_point = (pnt, depth, focus_el) -> 
+  open = fetch('open_points')
+  depth ||= 0 
+
+  already_open = open[pnt.key]?
+
+  if already_open
+    delete open[pnt.key]
+    if focus_el && depth > 1
+      Earl.load_page pnt.parent.substring(7)
+
+  else 
+
+    if depth > 1 && focus_el
+      old_pos = getCoords document.getElementById(focus_el)
+      old_top = old_pos.top - document.body.scrollTop
+      Earl.load_page pnt.parent.substring(7)
+      setTimeout ->
+        new_pos = getCoords document.getElementById(focus_el)
+        scrollTo 0, new_pos.top - old_top
+      , 30
+
+    for k,v of open 
+      delete open[k] if k != 'key'
+
+    # only enable parents to be open 
+    open_pnt = pnt 
+    while true 
+      open[open_pnt.key] = depth
+      depth -= 1
+
+      if !open_pnt.parent || depth < 0
+        break 
+
+      open_pnt = fetch open_pnt.parent 
+
+
+
+  save open
+
+window.get_open_children = (pnt) ->
+  return [] if !pnt  
+  open = fetch 'open_points'
+  pnt = fetch pnt 
+
+  open_children = []
+  for k,v of open 
+    if k != 'key'
+      ancestor = fetch k 
+      while ancestor.parent && ancestor = fetch(ancestor.parent)
+        if ancestor.key == pnt.key
+          open_children.push k 
+          continue 
+
+  open_children 
+
+close_children = (pnt) -> 
+  open = fetch('open_points')
+
+  if pnt 
+    pnt = fetch pnt 
+    open_children = get_open_children pnt 
+  else 
+    open_children = (k for k,v of open when k != 'key')
+
+  if open_children.length > 0 
+    for k in open_children
+      delete open[k]
+    save open
+
+
+
+######################
+# Style
+######################
+
+focus_blue = '#2478CC'
+feedback_orange = '#F19135'
+attention_magenta = '#FF00A4'
+logo_red = "#B03A44"
+light_gray = '#afafaf'
+light_blue = '#F6F7F9'
+
+avenir = 'Avenir Next W01, Avenir Next, Avenir, Helvetica, sans-serif'
+architect = 'Architects Daughter W00'
+
+list_styles = 
+  list_header: (depth) -> 
+    fontSize: 20
+    fontWeight: 300
+
+  point_header: (depth) -> 
+    fontSize: 18
+    fontWeight: 500
+
+  point_text: (depth) -> 
+    fontSize: 15
+    fontWeight: 400
+
+
+
+style = document.createElement "style"
+style.innerHTML =   ""
+document.body.appendChild style
+
+
+#</script>
+
+<script>
+  var OFFLINE_DEV = true 
+  var LOCAL_STATEBUS = true
+
+  // The statebus server we will connect to. Read by statebus_client.
+  if (window.location.hostname == 'localhost')
+    statebus_server = 'http://localhost:9375'
+  else 
+    statebus_server = 'http://considerit.us:9375'
+    
+  
+  if (LOCAL_STATEBUS)
+    var statebus_client = "/considerit-local/node_modules/statebus/client.js"
+  else 
+    var statebus_client = "https://stateb.us/client.js?v3" 
+    
+  // External scripts to load
+  var scripts_to_load = [ 
+    statebus_client
+  ]
+
+  for (script in scripts_to_load)
+    document.write("<script id=js-"+ script +  " src='" + scripts_to_load[script] + "' charset='utf-8'></script\>" )
+
+</script>

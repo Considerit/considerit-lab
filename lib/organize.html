@@ -1,0 +1,1089 @@
+<script type="statebus"># -*- mode: coffee -*-
+
+
+##############
+# Colors
+##############
+
+focus_blue = '#2478CC'
+transparent_focus_blue = (opacity) -> 
+  "rgba(36, 120, 204, #{opacity})"
+feedback_orange = '#F19135'
+logo_red = "#B03A44"
+light_gray = '#afafaf'
+light_blue = '#F6F7F9'
+
+slider_color = '#999'
+index_bg = '#F5F5F5' #'#F4F6F8'
+attention_magenta = '#FF00A4'
+open_point_color = 'black' #focus_blue #'#A13A9E' #
+list_header_color = focus_blue #'#aaa' #focus_blue #'#D18042'
+
+fontsize = { normal: 16 }
+
+
+avenir = 'Avenir Next W01, Avenir Next, Avenir, Helvetica, sans-serif'
+architect = 'Architects Daughter W00'
+
+list_styles = 
+  title: 
+    fontWeight: 400
+    fontSize: 42
+
+  heading1: 
+    # textTransform: 'uppercase'
+    color: list_header_color
+
+    fontSize: 32
+    fontWeight: 900
+
+    fontSize: 26
+    fontWeight: 400
+    fontFamily: architect
+
+  heading2: 
+    fontSize: 22
+    fontWeight: 500
+
+
+loc = fetch 'location'
+loc.url = '/point/proto_root'
+save loc 
+
+#########
+# Body: main content area
+
+dom.BODY = -> 
+  loc = fetch 'location'
+  root = fetch(loc.url)
+
+  new_lists = fetch 'new_lists'
+
+  if !new_lists.lists
+    lists = organize_children_by_type(root)
+    for [type, children] in lists       
+      type = fetch type
+
+    if @loading()
+      return SPAN null 
+
+    for [type, children] in lists 
+      type = fetch type
+      new_lists.lists ||= {}
+      new_lists.lists[resolve_type(fetch(type), 'category') or 'Points'] = (p.key for p in children)
+    save new_lists
+
+  DIV
+    id: 'main-content' #used in sizewhenrendered
+    style:
+      fontFamily: avenir
+      fontSize: fontsize.normal
+      position: 'relative'
+      #backgroundColor: '#eaeaea'
+
+    LINK 
+      href: 'http://fast.fonts.net/cssapi/9cd0e917-fcb5-4c2e-8e1c-e6789e1fd413.css'
+      rel: 'stylesheet'
+      type: 'text/css'
+
+    DIV 
+      ref: root.key
+      style: 
+        position: 'relative'
+        padding: '60px 44px 80px 100px'
+
+
+      DIV 
+        style: 
+          display: 'inline-block'
+          paddingRight: 30
+          width: (WINDOW_WIDTH() - 120) / 4 * 3 - 15 
+          boxShadow: '2px 0 1px -1px rgba(0,0,0,.4)'
+          borderRight: '1px solid #ccc'
+
+        for type,children of new_lists.lists
+          LIST
+            key: type
+            parent: root
+            type: type
+            points: children
+
+      DIV 
+        style: 
+          display: 'inline-block'
+          paddingLeft: 30
+          width: (WINDOW_WIDTH() - 120) / 4 - 15
+          verticalAlign: 'top'
+
+        for l,children of (new_lists.lists or {})
+          LIST_TARGET
+            list: l
+
+        DIV 
+          style: 
+            color: focus_blue
+
+          'New list'
+
+          INPUT 
+            type: 'text'
+            ref: 'new_list'
+            style: 
+              display: 'block'
+              minWidth: 100
+              border: '1px solid #ddd'
+          
+          BUTTON 
+            style: {}
+            onClick: =>
+              new_lists.lists[@refs.new_list.getDOMNode().value] = []
+              save new_lists
+
+            'create'
+
+        DIV 
+          style: 
+            fontFamily: 'courier new, monospace'
+            marginTop: 20
+            fontSize: 12
+
+          "subdomain_map = "
+          for l,children of (new_lists.lists or {})
+            continue if l == 'Channels'
+            for pnt in children
+              pnt = fetch pnt 
+
+              DIV null,
+                "\t'#{pnt.__old_name}': '#{l}'"
+
+
+     
+
+
+    TOOLTIP key: 'tooltip'
+
+dom.LIST_TARGET = -> 
+  type = @props.list  
+  new_lists = fetch 'new_lists'
+
+  color = if @local.drag_over then focus_blue else light_gray
+  DIV 
+    droppable: true
+    onDragEnter: (ev) => 
+      @local.drag_over = true 
+      save @local
+      ev.preventDefault()
+    onDragOver: (ev) => 
+      @local.drag_over = true 
+      save @local
+      ev.preventDefault()
+
+    onDragLeave: => 
+      @local.drag_over = false 
+      save @local
+    onDrop: (ev) => 
+      @local.drag_over = false 
+      save @local 
+      selected = fetch 'selected'
+      points_to_move = Object.keys(selected.points)
+
+      for pnt in points_to_move
+        for l,points of new_lists.lists 
+          if (idx=points.indexOf(pnt)) > -1 
+            points.splice(idx, 1)
+
+        new_lists.lists[type].push pnt 
+
+      save new_lists
+      selected.points = {}
+      save selected 
+      ev.preventDefault()
+
+    style: 
+      border: "2px dashed #{color}"
+      color: color
+      padding: "16px 20px"
+      display: 'inline-block'
+      margin: 4
+      fontSize: 20
+      maxWidth: 250
+      minHeight: 120
+      cursor: 'pointer'
+      borderRadius: 16
+      overflow: 'hidden'
+
+    type
+  
+
+dom.LIST = -> 
+  fetch 'new_lists'
+  type = @props.type  
+
+  points = @props.points or []
+
+  DIV 
+    style: {}      
+
+    DIV 
+      style: extend {}, list_styles.heading1,
+        fontSize: list_styles.heading1.fontSize - @props.depth * 2
+        marginBottom: 8
+        position: 'relative'
+
+      type
+
+    DIV
+      style: {}
+
+      for pnt in points
+        POINT 
+          key: pnt.key or pnt 
+          point: pnt
+
+dom.POINT = -> 
+  pnt = fetch @props.point 
+
+  selected = fetch('selected')
+  selected.points ||= {}
+
+  is_selected = selected.points[pnt.key]
+  
+  DIV 
+    id: pnt.key
+    draggable: true
+    onDragStart: (ev) => 
+      ev.dataTransfer.setData("text/plain", ev.target.id)
+      ev.dataTransfer.dropEffect = "move"
+
+      selected.points[pnt.key] = true 
+      save selected
+
+    style: 
+      backgroundColor: if is_selected then focus_blue else '#eee'
+      box_shadow: "0 1px 2px rgba(0,0,0,.15)"
+      border: "1px solid #{if is_selected then focus_blue else light_blue}"
+      color: if is_selected then 'white'
+      padding: "8px 12px"
+      display: 'inline-block'
+      margin: 4
+      fontSize: 14
+      maxWidth: 250
+      minHeight: 50
+      cursor: 'pointer'
+      borderRadius: 16
+      overflow: 'hidden'
+
+    onClick: => 
+      selected.points[pnt.key] = !selected.points[pnt.key]
+      save selected
+
+    pnt.summary
+
+
+
+##############
+# DATA ENTRY
+#############
+
+dom.NEW_POINT = -> 
+  type = @props.type.key or @props.type
+  you = your_key()
+  w = 500
+
+  depth = @props.depth
+
+  DIV 
+    style:
+      position: 'relative'
+      minHeight: 30
+      marginTop: 10
+
+    SPAN 
+      style: 
+        left: -24
+        position: 'absolute'
+        top: 6 - depth
+        verticalAlign: 'top'
+
+      dangerouslySetInnerHTML:
+        __html: ['&#9632;', '&bull;', '&mdash;'][depth % 3]
+
+
+    if !@local.editing
+      SPAN 
+        style: extend {}, list_styles.heading2,
+          fontSize: 24 - 2 * depth
+          #marginLeft: 68
+          color: focus_blue
+          cursor: 'pointer'
+          borderBottom: "1px solid #{focus_blue}"
+
+        onClick: (e) => 
+          @local.editing = true; save(@local)
+        
+        "Add new"
+
+    else 
+
+      DIV 
+        style: 
+          marginLeft: -9
+          display: 'inline-block'
+          width: w
+        TEXTAREA 
+          key: 'summary'
+          ref: 'summary'
+          pattern:'^.{3,}'
+          placeholder: "Summarize your point"
+          required:'required'
+          style: extend {}, list_styles.heading2,
+            width: w
+            border: "1px solid #eaeaea"
+            outline: 'none'
+            padding: '6px 8px'
+            resize: 'none'
+
+        GROWING_TEXTAREA
+          key: 'description'
+          ref: 'description'
+          placeholder: "Add details here (optional)"
+
+          style: 
+            fontSize: fontsize.normal
+            padding: '6px 8px'
+            marginTop: 8
+            width: '100%'
+            minHeight: 40
+            border: '1px solid #eaeaea'   
+            outline: 'none'       
+
+        DIV 
+          style: 
+            marginTop: 8
+
+          SPAN 
+            style: 
+              backgroundColor: focus_blue
+              color: 'white'
+              cursor: 'pointer'
+              borderRadius: 16
+              padding: '4px 24px'
+              display: 'inline-block'
+              marginLeft: 12
+              float: 'right'
+
+            onClick: => 
+              create_point
+                parent: @props.parent
+                type: type
+                summary: @refs.summary.getDOMNode().value
+                description: @refs.description.getDOMNode().value 
+
+              @local.editing = false 
+              save @local
+
+            'Done'
+
+          SPAN 
+            style: 
+              color: '#888'
+              cursor: 'pointer'
+              float: 'right'
+              padding: '4px 0px'
+            onClick: => @local.editing = null; save(@local)
+            'cancel'
+
+          DIV style: clear: 'both'
+
+
+
+dom.AVATAR = -> 
+  return SPAN null if !@props.user
+
+  @props.style ||= {}
+  if !@props.style.height?
+    @props.style.height = 50
+  if !@props.style.width?
+    @props.style.width = 50
+
+  @props.style.display ||= 'inline-block'
+  @props.hide_tooltip ||= false
+  @props.key ||= "avatar-#{@props.user.key or @props.user}"
+
+  add_initials = if !@props.add_initials? then true else @props.add_initials
+
+  user = fetch(@props.user)
+
+  extend @props,
+    'data-user': @props.user
+    'data-showtooltip': !@props.hide_tooltip
+
+  name = (user.name || 'Anonymous').split(' ')
+  if @props.hide_tooltip && !user.key == your_key()
+    @props.title = name
+
+  if user.avatar 
+    @props.src ||= user.avatar
+    IMG @props
+  else
+    @props.style.backgroundColor ||= '#62B39D'
+
+    if add_initials
+      @props.style.textAlign = 'center'
+      if name == 'Anonymous'
+        name = '?'
+      if name.length > 1
+        name = "#{name[0][0]}#{name[1][0]}"
+      else 
+        name = "#{name[0][0]}"
+
+      ff = 'monaco,Consolas,"Lucida Console",monospace'
+
+    SPAN @props, 
+
+      SPAN 
+        key: 'initials'
+        style: 
+          color: 'white'
+          pointerEvents: 'none'
+          fontSize: @props.style.width / 2
+          display: 'block'
+          position: 'relative'
+          fontFamily: ff
+          #top: style.height / 2 - initials_size.height
+          padding: @props.style.width / 4
+        name
+
+
+######################
+# Data methods
+#####################
+
+####
+# organize_children_by_type
+#   - Sort children into lists
+#   - Applies local overrides to point configuration
+organize_children_by_type = (pnt) -> 
+  pnt = fetch pnt
+  types = {}
+
+  for subpnt in (pnt.children or [])
+    subpnt = fetch subpnt
+    type = subpnt.type or subpnt.key
+    types[type] ||= []
+    types[type].push subpnt
+
+  ordered_types = []
+  for type in (resolve_type(pnt, 'suggests') or [])
+    ordered_types.push [type, (types[type] or [])]
+
+  ordered_types
+
+# look up the parent chain for the prop
+resolve = (obj, prop) -> 
+  _resolve obj, 'parent', prop 
+
+# look up the type chain for the prop
+resolve_type = (obj, prop) -> 
+  _resolve obj, 'type', prop
+
+_resolve = (obj, inherit_prop, prop) -> 
+  return null if !obj || ( typeof(obj) != 'string' && !obj.key)
+
+  obj = fetch obj 
+
+  if obj?[prop]
+    obj[prop]
+  else if obj[inherit_prop]
+    _resolve obj[inherit_prop], inherit_prop, prop
+  else 
+    null 
+
+apply_to_parent = (pnt, props) ->
+  return if Object.keys(props).length == 0
+
+  f = reactive_once -> 
+    pnt = fetch pnt 
+    if pnt.parent
+      parent = fetch pnt.parent 
+      return if f.loading()
+
+      for own k,v of props 
+        parent[k] = v
+        delete pnt[k]
+
+      save parent
+      save pnt 
+
+  f()
+
+apply_to_type = (pnt, props) -> 
+  return if Object.keys(props).length == 0
+
+  f = reactive_once -> 
+    pnt = fetch pnt 
+    if pnt.type 
+      type = fetch pnt.type 
+      return if f.loading()
+
+      for own k,v of props 
+        type[k] = v 
+        delete pnt[k]
+
+      save type 
+      save pnt
+
+  f()
+
+
+
+
+# assumes shallow structure where properties 
+# don't have array or obj properties
+obj_equal = (a,b) -> 
+  a_keys = Object.keys a 
+  b_keys = Object.keys b
+
+  return false if a_keys.length != b_keys.length
+
+  for k in a_keys 
+    return false if b[k] != a[k] 
+
+  return true 
+
+deep_clone = (obj) -> 
+  JSON.parse JSON.stringify(obj)
+
+array_remove = (ar, val) -> 
+  if ar 
+    idx = ar.indexOf val
+    if idx > -1
+      return ar.splice idx, 1
+
+  null 
+
+type_is_array = ( value ) ->
+  value and
+    typeof value is 'object' and
+    value instanceof Array and
+    typeof value.length is 'number' and
+    typeof value.splice is 'function' and
+    not ( value.propertyIsEnumerable 'length' )
+
+assert = (msg, assertion) -> 
+  if console.assert
+    console.assert assertion, msg
+    if !assertion
+      throw msg
+
+reactive_once = (func) -> 
+  f = bus.reactive -> 
+    func()
+    if !f.loading()
+      f.forget_everything()
+  f 
+
+
+
+
+
+
+
+######################
+# Responsive variables
+######################
+
+# Controls changes to shared system variables based upon 
+# characteristics of the device. Primarily changes based on window size. 
+#
+# Publishes via StateBus "layout_vars". 
+#
+# A convenience method for accessing those variables is provided. 
+# Say you want to do fetch('layout_vars').CONTENT_WIDTH. Instead you 
+# can just write CONTENT_WIDTH().  
+
+######
+# layout_vars
+#
+# Updates the responsive variables. Called once on system load, and 
+# then subsequently whenever there is a relevant system event that 
+# would demand the variables to be recalculated (e.g. window resizing)
+layout_vars = -> 
+  responsive = fetch('layout_vars')
+
+  w = window.innerWidth
+  h = window.innerHeight
+
+  new_vals = 
+    WINDOW_WIDTH: w
+    WINDOW_HEIGHT: h
+
+  # only update if we have a change
+  has_new = false
+  for own k,v of new_vals
+    if responsive[k] != v
+      has_new = true
+      responsive[k] = v
+
+  save(responsive) if has_new
+      
+# Initialize the responsive variables
+layout_vars()
+
+# Whenever the window resizes, we need to recalculate the variables.
+window.addEventListener "resize", layout_vars
+
+# Convenience method for programmers to access responsive variables.
+responsive = fetch('layout_vars')
+for lvar in Object.keys(responsive)
+  do (lvar) ->
+    window[lvar] = -> fetch('layout_vars')[lvar]
+
+
+########################################
+# 99.9% COPY / PASTED AFTER THIS POINT
+########################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#########
+# Login
+#########
+
+dom.LOGIN = ->  
+  local_you = fetch('ls/you')
+  username = local_you.user?.split('/')[2]
+  you = if local_you.user then fetch(local_you.user)
+
+  label_style = 
+    display: 'inline-block'
+    width: 85
+    marginRight: 3
+  input_style = 
+    border: '1px solid #ddd'
+    padding: '4px 8px'
+  field_style = 
+    marginBottom: 3
+
+  DIV
+    style: 
+      backgroundColor: 'white'
+
+    onMouseEnter: => @local.hover = true; save(@local)
+    onMouseLeave: => @local.hover = false; save(@local)
+    onTouchEnd: => @local.hover = true; save(@local)
+    
+    if @local.hover || !you?.name?
+      DIV null,
+        DIV style: field_style,
+          SPAN style: label_style,
+            'Username:'
+          INPUT
+            type: 'text'
+            style: input_style
+            value: username
+            onChange: (e) ->
+              local_you.user = '/user/' + e.target.value
+              save(local_you)
+        DIV style: field_style,
+          SPAN style: label_style,
+            'Name:'
+          INPUT
+            type: 'text'
+            style: input_style            
+            disabled: not username
+            value: if username && you?.name? then you.name
+            onChange: (e) ->
+              you.name = e.target.value
+              save(you)
+        DIV style: field_style,
+          SPAN style: label_style,
+            'Icon URL:'
+          INPUT
+            type: 'text'
+            style: input_style            
+            value: if you?.avatar then you.avatar
+            disabled: not username
+            onChange: (e) ->
+              you.avatar = e.target.value
+              save(you)
+
+    else
+      DIV 
+        style: 
+          color: '#007FFF'
+          fontWeight: 600
+        if username
+          'Hello ' + you.name
+        else
+          'Login'
+
+
+#################
+# GrowingTextarea
+#################
+
+# Auto growing text area. 
+# Transfers props to a TEXTAREA.
+dom.GROWING_TEXTAREA = ->
+  @props.style ||= {}
+  @props.style.minHeight ||= 60
+  @props.style.height = \
+      @local.height || @props.initial_height || @props.style.minHeight
+  @props.style.fontFamily ||= 'inherit'
+  @props.style.lineHeight ||= '22px'
+  @props.style.resize ||= 'none'
+  @props.style.outline ||= 'none'
+
+  # save the supplied onChange function if the client supplies one
+  _onChange = @props.onChange    
+
+  @props.onClick = (ev) -> 
+    ev.preventDefault(); ev.stopPropagation()
+
+  @props.onChange = (ev) => 
+    _onChange?(ev)  
+    @adjustHeight()
+
+  @adjustHeight = => 
+    textarea = @getDOMNode()
+
+    if !textarea.value || textarea.value == ''
+      h = @props.initial_height || @props.style.minHeight
+
+      if h != @local.height
+        @local.height = h
+        save @local
+    else 
+      min_height = @props.style.minHeight
+      max_height = @props.style.maxHeight
+
+      # Get the real scrollheight of the textarea
+      h = textarea.style.height
+      textarea.style.height = '' if @last_value?.length > textarea.value.length
+      scroll_height = textarea.scrollHeight
+      textarea.style.height = h  if @last_value?.length > textarea.value.length
+
+      if scroll_height != textarea.clientHeight
+        h = scroll_height + 5
+        if max_height
+          h = Math.min(scroll_height, max_height)
+        h = Math.max(min_height, h)
+
+        if h != @local.height
+          @local.height = h
+          save @local
+
+    @last_value = textarea.value
+
+  TEXTAREA @props
+
+dom.GROWING_TEXTAREA.refresh = -> 
+  @adjustHeight()
+
+
+# renders styled HTML, TODO: strip script tags first
+dom.RENDER_HTML = -> 
+  DIV 
+    className: 'embedded_html'
+    dangerouslySetInnerHTML:
+      __html: @props.html
+
+
+
+# Takes an ISO time and returns a string representing how
+# long ago the date represents.
+# from: http://stackoverflow.com/questions/7641791
+window.prettyDate = (time) ->
+  date = new Date(time) #new Date((time || "").replace(/-/g, "/").replace(/[TZ]/g, " "))
+  diff = (((new Date()).getTime() - date.getTime()) / 1000)
+  day_diff = Math.floor(diff / 86400)
+
+  return if isNaN(day_diff) || day_diff < 0
+
+  # TODO: pluralize properly (e.g. 1 days ago, 1 weeks ago...)
+  r = day_diff == 0 && (
+    diff < 60 && "just now" || 
+    diff < 120 && "1 minute ago" || 
+    diff < 3600 && Math.floor(diff / 60) + " minutes ago" || 
+                              diff < 7200 && "1 hour ago" || 
+                              diff < 86400 && Math.floor(diff / 3600) + " hours ago") || 
+                              day_diff == 1 && "Yesterday" || 
+                              day_diff < 7 && day_diff + " days ago" || 
+                              day_diff < 31 && Math.ceil(day_diff / 7) + " weeks ago" ||
+                              "#{date.getMonth() + 1}/#{date.getDay() + 1}/#{date.getFullYear()}"
+
+  r = r.replace('1 days ago', '1 day ago').replace('1 weeks ago', '1 week ago').replace('1 years ago', '1 year ago')
+  r
+
+
+
+##########
+# Performance hack.
+# Was seeing major slowdown on pages with lots of avatars simply because we
+# were attaching a mouseover and mouseout event on each and every Avatar for
+# the purpose of showing a tooltip name. So we use event delegation instead. 
+document.addEventListener "mouseover", (e) ->
+  if e.target.getAttribute('data-user') && \
+     e.target.getAttribute('data-showtooltip') == 'true'
+    user = fetch(e.target.getAttribute('data-user'))
+    name = fetch(user).name
+    create_tooltip name, e.target
+
+document.addEventListener "mouseout", (e) ->
+  if e.target.getAttribute('data-user') && \
+     e.target.getAttribute('data-showtooltip') == 'true'
+    clear_tooltip()
+
+dom.TOOLTIP = -> 
+  tooltip = fetch('tooltip')
+  return SPAN(null) if !tooltip.coords
+
+  coords = tooltip.coords
+  tip = tooltip.tip
+
+  style = 
+    fontSize: 16
+    padding: '2px 4px'
+    borderRadius: 8
+    #whiteSpace: 'nowrap'
+    maxWidth: 200
+
+  size = sizeWhenRendered(tip, style)
+
+  # place the tooltip above the element
+  extend style, 
+    top: coords.top - size.height - 9
+    left: coords.left - size.width / 2
+    pointerEvents: 'none'
+    zIndex: 9999
+    color: '#999'
+    backgroundColor: '#f6f6f6'
+    position: 'absolute'
+
+  DIV
+    style: style
+    dangerouslySetInnerHTML: {__html: tip}
+
+create_tooltip = (tip, target) -> 
+  pos = target.getBoundingClientRect()
+  tooltip = extend fetch('tooltip'),
+    tip: tip
+    coords: 
+      top: pos.top + window.scrollY
+      left: pos.left + pos.width / 2
+  save tooltip 
+
+clear_tooltip = ->
+  tooltip = fetch 'tooltip'
+  tooltip.coords = null
+  tooltip.tip = null
+  save tooltip
+
+window.extend = (obj) ->
+  obj ||= {}
+  for arg, idx in arguments 
+    if idx > 0
+      for own name,s of arg
+        if !obj[name]? || obj[name] != s
+          obj[name] = s
+  obj
+
+window.defaults = (obj) ->
+  obj ||= {}
+  for arg, idx in arguments by -1
+    if idx > 0
+      for own name,s of arg
+        if !obj[name]?
+          obj[name] = s
+  obj
+
+# Computes the width/height of some text given some styles
+size_cache = {}
+window.sizeWhenRendered = (str, style) -> 
+  main = document.getElementById('main-content')
+
+  return {width: 0, height: 0} if !main
+
+  style ||= {}
+  # This DOM manipulation is relatively expensive, so cache results
+  style.str = str
+  key = JSON.stringify style
+  delete style.str
+
+  if key not of size_cache
+    style.display ||= 'inline-block'
+
+    test = document.createElement("span")
+    test.innerHTML = "<span>#{str}</span>"
+    for k,v of style
+      test.style[k] = v
+
+    main.appendChild test 
+    h = test.offsetHeight
+    w = test.offsetWidth
+    main.removeChild test
+
+    size_cache[key] = 
+      width: w
+      height: h
+
+  size_cache[key]
+
+
+your_key = -> fetch('ls/you').user
+
+you = -> fetch(your_key())
+
+new_key = (type, desc) ->
+  type ||= 'point'
+  if desc
+    slug = slugify(desc) 
+    slug += "-" + Math.random().toString(36).substring(7)
+  else 
+    slug = Math.random().toString(36).substring(7)
+  '/' + type + '/' + slug
+
+
+slugify = (text) -> 
+  text.toString().toLowerCase()
+    .replace(/\s+/g, '-')           # Replace spaces with -
+    .replace(/[^\w\-]+/g, '')       # Remove all non-word chars
+    .replace(/\-\-+/g, '-')         # Replace multiple - with single -
+    .replace(/^-+/, '')             # Trim - from start of text
+    .replace(/-+$/, '')             # Trim - from end of text
+    .substring(0, 30)
+
+
+
+
+######################
+# Actions on page load
+######################
+  
+  
+window.onload = -> 
+  style = document.createElement "style"
+  style.innerHTML =   """
+    * {box-sizing: border-box;}
+    html, body {margin: 0; padding: 0;}
+    .grab_cursor {
+      cursor: move;
+      cursor: grab;
+      cursor: ew-resize;
+      cursor: -webkit-grab;
+      cursor: -moz-grab;
+    } .grab_cursor:active {
+      cursor: move;
+      cursor: grabbing;
+      cursor: ew-resize;
+      cursor: -webkit-grabbing;
+      cursor: -moz-grabbing;
+    }
+
+    input, textarea {
+      line-height: 22px;
+    }
+
+    /**
+     * Eric Meyer's Reset CSS v2.0 
+    (http://meyerweb.com/
+    eric/tools/css/reset/)
+     * http://cssreset.com
+     */
+    html, body, div, span, applet, object, iframe,
+    h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+    a, abbr, acronym, address, big, cite, code,
+    del, dfn, em, img, ins, kbd, q, s, samp,
+    small, strike, strong, sub, sup, tt, var,
+    b, u, i, center,
+    dl, dt, dd, ol, ul, li,
+    fieldset, form, label, legend,
+    table, caption, tbody, tfoot, thead, tr, th, td,
+    article, aside, canvas, details, embed, 
+    figure, figcaption, footer, header, hgroup, 
+    menu, nav, output, ruby, section, summary,
+    time, mark, audio, video,
+    input, textarea {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      font-size: 100%;
+      font: inherit;
+      vertical-align: baseline;
+    }
+    /* HTML5 display-role reset for older browsers */
+    article, aside, details, figcaption, figure, 
+    footer, header, hgroup, menu, nav, section {
+      display: block;
+    }
+    body {
+      line-height: 1.4;
+    }
+    ol, ul {
+      list-style: none;
+    }
+    blockquote, q {
+      quotes: none;
+    }
+    blockquote:before, blockquote:after,
+    q:before, q:after {
+      content: '';
+      content: none;
+    }
+    table {
+      border-collapse: collapse;
+      border-spacing: 0;
+    }
+    """
+  document.body.appendChild style
+
+#</script>
+
+<script>
+  var OFFLINE_DEV = true 
+  var LOCAL_STATEBUS = true
+
+  // The statebus server we will connect to. Read by statebus_client.
+  statebus_server = 'http://localhost:9375'
+  
+  if (LOCAL_STATEBUS)
+    var statebus_client = "/considerit-local/node_modules/statebus/client.js"
+  else 
+    var statebus_client = "https://rawgit.com/invisible-college/statebus/master/client.js" 
+    
+  // External scripts to load
+  var scripts_to_load = [ 
+    statebus_client
+  ]
+
+  for (script in scripts_to_load)
+    document.write("<script src='" + scripts_to_load[script] + "' charset='utf-8'></script\>" )
+
+</script>

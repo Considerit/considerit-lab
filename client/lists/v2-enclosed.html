@@ -1,0 +1,1173 @@
+<script type= "statebus"> # -*- mode: coffee -*-
+
+
+
+include '/code/considerit/shared.coffee', -> css_reset()
+include '/code/considerit/types.coffee'
+include '/code/considerit/slidergrams.coffee'
+
+include '/code/earl.coffee', -> 
+  Earl.start_work
+    history_aware_links: true
+
+include '/code/considerit/fickle.coffee', -> 
+  fickle.init (vars) -> 
+    gutter: 40 
+    spacing: 18
+    max_width: 1100
+
+
+##############
+# Colors
+##############
+
+focus_blue = '#2478CC'
+transparent_focus_blue = (opacity) -> 
+  "rgba(36, 120, 204, #{opacity})"
+feedback_orange = '#F19135'
+logo_red = "#B03A44"
+light_gray = '#afafaf'
+
+slider_color = '#999'
+index_bg = '#F5F5F5' #'#F4F6F8'
+attention_magenta = '#FF00A4'
+
+
+fontsize = { normal: 16 }
+
+list_styles = 
+  title: 
+    fontWeight: 600
+    lineHeight: 1.2
+    fontSize: 36
+    paddingBottom: 15
+  subtitle: 
+    fontStyle: 'italic'
+    fontSize: fontsize.normal
+  heading1: 
+    fontSize: 40
+    fontWeight: 500
+    fontStyle: 'italic'
+    #fontWeight: 200
+
+  heading2: 
+    fontSize: 21
+    fontWeight: 500
+
+
+#root = fetch("/point/seattle2035v2")
+#root = fetch("/point/bitcoinv2")
+root = fetch("/point/proto_root")
+
+#########
+# Body: main content area
+
+loc = fetch('location')
+loc.url = root.key
+save loc 
+
+dom.BODY = ->  
+
+  fetch 'include'
+  
+  DIV
+    id: 'main-content' #used in sizewhenrendered
+    style:
+      fontFamily: 'Avenir Next W01, Avenir Next, Avenir, Helvetica, sans-serif'
+      fontSize: fontsize.normal
+      position: 'relative'
+      paddingRight: if fickle? then fickle.gutter
+
+    onClick: -> 
+      close_children()
+
+    LINK 
+      href: 'http://fast.fonts.net/cssapi/9cd0e917-fcb5-4c2e-8e1c-e6789e1fd413.css'
+      rel: 'stylesheet'
+      type: 'text/css'
+
+    DIV 
+      style: 
+        position: 'relative'
+        float: 'right'
+        display: 'inline-block'
+        marginRight: 20
+      if LOGIN? then LOGIN()
+
+    DIV 
+      ref: root.key
+      style: 
+        position: 'relative'
+        padding: '50px 0px'
+
+
+      # POINT 
+      #   key: root.key 
+      #   point: root 
+      #   depth: 0
+
+    if TOOLTIP?
+      TOOLTIP key: 'tooltip'
+
+
+unfocused_opacity = .25
+focused_point_header_color = focus_blue
+focused_point_border = focus_blue
+
+dom.POINT = -> 
+  pnt = fetch @props.point
+
+  depth = @props.depth 
+  max_depth = max_depth_of_open_point()
+
+  extra_padding = if depth == 0 then fickle.gutter else 0
+
+  unfocused = get_open_children(pnt).length > 0
+
+  border_color = if @props.depth == 0 || unfocused then 'transparent' else focused_point_border
+
+  avatar_offset = point_icon_size(pnt) + fickle.spacing
+
+  slidergrams = (pnt.sliders or (pnt.children?[1] and fetch(pnt.children[1]).sliders) or [])
+
+  w = text_width(pnt, @props.depth) + opinion_width(pnt, @props.depth) + fickle.gutter
+
+
+  
+  if !@local.collapse_description? && !@loading()
+    s = sizeWhenRendered "<DIV class='embedded_html'>#{pnt.description}</div>",
+        fontSize: 21 
+
+    if s.height >= 300      
+      @local.description_collapsed = @local.collapse_description = true
+    else 
+      @local.collapse_description = false
+    save @local
+
+  padding = avatar_offset + fickle.spacing + extra_padding
+  DIV 
+    style: 
+      backgroundColor: 'white'
+      position: 'relative'
+      marginBottom: 20
+      paddingBottom: 10
+      border: "1px solid #{border_color}"
+      borderRightColor: 'transparent'
+      borderRadius: "16px 0 0 16px"
+      left: -1 - fickle.spacing
+      top: -1 - fickle.spacing
+      #width: text_width(pnt, @props.depth) + opinion_width(pnt, @props.depth) + 3 * fickle.gutter
+      cursor: if depth < max_depth then 'pointer' else 'default'
+
+    onClick: (e) => 
+      close_children pnt
+      e.stopPropagation()
+
+
+    # Heading 
+
+    DIV 
+      style:
+        #position: 'relative'
+        paddingTop: 18
+        paddingLeft: padding 
+        backgroundColor: if !unfocused then focused_point_header_color
+        borderRadius: "16px 0 0 0"
+        opacity: if unfocused then unfocused_opacity
+
+      POINT_ICON 
+        pnt: pnt 
+        left: 18
+        top: 22
+
+
+      # Title
+      DIV 
+        style: extend {}, list_styles.title,
+          display: 'inline-block'
+          cursor: 'pointer'
+          color: if !unfocused then 'white'
+          paddingRight: if !unfocused then 20
+          
+
+        onMouseEnter: => @local.hover = pnt.key; save(@local)
+        onMouseLeave: => @local.hover = false; save(@local)
+        onClick: (e) => 
+          toggle_point pnt, depth
+          e.stopPropagation()
+
+        pnt.summary
+
+    # the rest...
+    DIV 
+      style: 
+        paddingLeft: padding 
+        marginTop: 20
+
+      # Description
+      if pnt.description
+        collapse = !@local.collapse_description? || \
+                    @local.description_collapsed 
+
+        DIV 
+          style: 
+            width: w
+            opacity: if unfocused then unfocused_opacity
+
+          DIV 
+            className: 'embedded_html'
+            ref: 'description'
+            style:
+              fontSize: 21
+              maxHeight: if collapse then 300
+              overflow: if collapse then 'hidden'
+
+            dangerouslySetInnerHTML: {__html: pnt.description}
+
+          if @local.collapse_description
+            DIV 
+              style:
+                backgroundColor: 'eee'
+                cursor: 'pointer'
+                textAlign: 'center'
+                textDecoration: 'underline'
+                padding: 8
+
+              onClick: => 
+                @local.description_collapsed = !@local.description_collapsed
+                save @local
+
+              if @local.description_collapsed
+                'Expand full text'
+              else 
+                'Hide full text'
+
+
+      # Slidergrams
+      if slidergrams.length > 0
+        DIV
+          style: 
+            marginTop: 60
+            marginBottom: 80
+            opacity: if unfocused then unfocused_opacity
+
+          for sldr in slidergrams
+            histoheight = Math.min 150, 4 * (sldr.opinions or []).length + 20 
+
+            SLIDERGRAM
+              width: w
+              height: histoheight
+              sldr: sldr
+              base_thickness: 2
+              show_labels: true
+
+
+      # Sublists
+      DIV 
+        style: {}
+
+        for [type, children] in organize_children_by_type(pnt)
+          LIST
+            parent: pnt
+            type: type
+            points: children
+            depth: @props.depth
+            unfocused: unfocused
+
+        NEW_LIST
+          suggested_by: pnt
+
+
+
+dom.LIST = -> 
+  type = fetch @props.type  
+  return SPAN null if @loading()
+
+  if type.sliders?.length > 0
+    labels = resolve type.sliders[0], 'labels'
+  else 
+    labels = null 
+
+  # if @local.editing 
+  #   return EditList 
+  #     type: type.key 
+  #     suggested_by: @props.parent
+  #     done: => @local.editing = false; save @local 
+
+  # @draw_list_menu = => 
+
+  #   li_style = 
+  #     padding: "8px 16px"
+  #     textAlign: 'right'
+  #     position: 'relative'
+  #     display: 'block'
+
+  #   SPAN 
+  #     style:
+  #       marginLeft: 10
+  #       cursor: 'pointer'
+  #       position: 'relative'
+  #       opacity: if !@local.hover_heading then '.1'
+
+  #     onClick: => @local.list_menu = !@local.list_menu; save @local
+
+  #     String.fromCodePoint parseInt('25BE',16) # down triangle
+
+  #     if @local.list_menu
+        
+  #       UL 
+  #         style: 
+  #           position: 'absolute'
+  #           backgroundColor: '#F7F7F7'
+  #           borderRadius: 16
+  #           border: "1px solid #DADADA"
+  #           right: -15
+  #           fontSize: fontsize.normal
+  #           zIndex: 1
+
+  #         LI 
+  #           style: li_style
+  #           onClick: => @local.editing = true; save @local      
+  #           'edit'
+
+  #         LI 
+  #           style: li_style
+  #           onClick: => delete_point type
+
+  #           'delete'
+
+  collapse_list_length = 5
+
+  if !@local.collapsed?
+    @local.collapsed = @props.points?.length > collapse_list_length + 1
+    @local.toggled = false 
+
+  points = @props.points or []
+  total_points = points.length
+
+  if @local.collapsed
+    points = points.slice(0,collapse_list_length)
+
+
+
+  DIV 
+    style: 
+      marginTop: 20
+      marginBottom: 60
+      
+
+    DIV 
+      style: 
+        position: 'relative'
+        opacity: if @props.unfocused then unfocused_opacity
+      onMouseEnter: => @local.hover_heading = true; save @local 
+      onMouseLeave: => 
+        @local.hover_heading = @local.list_menu = false; save @local
+
+      DIV 
+        style: extend {}, list_styles.heading1,
+          display: 'inline-block'
+          marginBottom: 40
+          width: text_width(type, @props.depth)
+
+        resolve_type(type, 'category') or 'Points'
+
+        #@draw_list_menu()
+
+      DIV 
+        style: 
+          width: opinion_width(type, @props.depth)
+          display: 'inline-block'
+          position: 'relative'
+          left: fickle.gutter
+        DIV 
+          style: extend {}, list_styles.heading1,
+            textAlign: 'center'
+
+          resolve_type(type, 'opinion_heading') or 'Opinions'
+
+        if labels
+          DIV 
+            style: 
+              fontWeight: 300
+              fontSize: 21
+
+            SPAN 
+              style: 
+                position: 'absolute'
+                left: 0
+
+              labels[0]
+
+            SPAN 
+              style: 
+                position: 'absolute'
+                right: 0
+              labels[1] 
+
+
+    DIV
+      style: 
+        marginTop: 0
+
+      for pnt in points
+        if is_point_open pnt
+          POINT 
+            key: pnt.key or pnt 
+            point: pnt
+            depth: @props.depth + 1
+        else
+          DIV 
+            style: 
+              opacity: if @props.unfocused then unfocused_opacity
+            SUBPOINT 
+              key: pnt.key or pnt 
+              point: pnt
+              depth: @props.depth
+
+      DIV 
+        style: 
+          opacity: if @props.unfocused then unfocused_opacity
+
+        if !@local.collapsed
+          NEWPOINT
+            type: type
+            parent: @props.parent
+            depth: @props.depth + 1
+
+        else 
+          DIV 
+            style:
+              backgroundColor: '#f6f7f9'
+              cursor: 'pointer'
+              #textAlign: 'center'
+              padding: 8
+              marginLeft: -8
+              color: focus_blue
+              fontSize: 18
+              display: 'inline-block'
+              marginTop: 4
+
+            onClick: => 
+              @local.collapsed = false
+              save @local
+
+
+            "Show #{total_points - collapse_list_length} more"
+            SPAN 
+              style: 
+                color: '#777'
+              " or "
+            "add a new one"
+
+dom.SUBPOINT = -> 
+  pnt = fetch @props.point
+
+  depth = @props.depth
+
+  icon_size = point_icon_size pnt
+
+  separator = SPAN 
+    # dangerouslySetInnerHTML: { __html: '&bull;'}
+    style: 
+      padding: '0 8px'
+
+
+  DIV 
+    id: "subpoint-#{pnt.key}"
+    style:
+      paddingBottom: 20
+      display: 'block'
+      position: 'relative'
+      minHeight: icon_size + 20
+      marginLeft: icon_size + fickle.spacing
+
+    POINT_ICON pnt: pnt 
+
+
+    DIV
+      style: 
+        width: text_width(pnt, @props.depth) - icon_size - fickle.spacing 
+        display: 'inline-block'
+        verticalAlign: 'top'
+
+
+
+      SPAN 
+        style: extend {}, list_styles.heading2
+
+
+        SPAN 
+          style:
+            borderBottom: "1px solid \
+                           #{if @local.hover then 'black' else 'transparent'}"
+            cursor: 'pointer'
+
+          onMouseEnter: => @local.hover = true; save(@local)
+          onMouseLeave: => @local.hover = false; save(@local)
+
+          onClick: (e) => 
+            toggle_point pnt, depth
+            @local.hover = false 
+            save @local
+            e.stopPropagation()
+
+          pnt.summary
+
+          if pnt.description?.length > 0
+            SPAN 
+              dangerouslySetInnerHTML: { __html: '&hellip;'}
+              style: 
+                color: light_gray
+
+      DIV 
+        style: 
+          fontSize: 16
+          color: light_gray
+          fontStyle: 'italic'
+
+        if pnt.creator
+          SPAN 
+            style: {}
+
+            "by #{fetch(pnt.creator)?.name}"
+
+            separator
+
+        if pnt.children?.length > 0
+          SPAN 
+            style: {}
+            # SPAN 
+            #   dangerouslySetInnerHTML: { __html: '&bull;'}
+            #   style: 
+            #     paddingRight: 4
+            "#{pnt.children?.length} subpoint#{if pnt.children.length != 1 then 's' else ''}"
+
+
+        # SPAN 
+        #   style: 
+        #     cursor: 'pointer'
+        #   onClick: => delete_point(pnt) # TODO: prompt for confirmation
+
+        #   'delete'
+
+    DIV
+      style: 
+        display: 'inline-block'
+        position: 'relative'
+        left: fickle.gutter
+
+      for sldr in (pnt.sliders or [])
+        SLIDERGRAM
+          width: opinion_width(pnt, @props.depth)
+          height: 50
+          sldr: sldr
+
+
+
+point_icon_size = (pnt) -> 
+  pnt = fetch pnt 
+  icon = false && resolve_type pnt, 'icon'
+
+  if icon
+    40
+  else 
+    10
+
+dom.POINT_ICON = ->
+  pnt = fetch @props.pnt 
+  icon = false && resolve_type pnt, 'icon'
+
+  if @props.user 
+    user = @props.user 
+  else 
+    user = pnt.creator 
+
+  size = point_icon_size pnt
+
+  style = 
+    position: 'absolute'
+    left: @props.left or -size - fickle.spacing
+    top: @props.top or 4
+    verticalAlign: 'top'
+
+  size_sty = 
+    height: size
+    width: size
+
+  #return SPAN null if !icon
+
+  SPAN 
+    style: style 
+
+    if icon == 'author'
+      Avatar
+        user: user 
+        style: size_sty
+
+    else if icon 
+      IMG 
+        src: icon 
+        style: size_sty
+    else
+      SPAN 
+        dangerouslySetInnerHTML:
+          __html: if pnt.parent && !is_point_open(pnt) then '&bull;'
+
+
+is_point_open = (pnt) -> 
+  fetch('open_points')[(pnt.key or pnt)]?
+
+toggle_point = (pnt, depth) -> 
+  open = fetch('open_points')
+  if open[pnt.key]?
+    delete open[pnt.key]
+  else
+    open[pnt.key] = depth or 0
+  save open
+
+get_open_children = (pnt) -> 
+  open = fetch('open_points')
+  pnt = fetch pnt 
+
+  open_children = []
+  for k,v of open 
+    if k != 'key'
+      ancestor = fetch k 
+      while ancestor.parent && ancestor = fetch(ancestor.parent)
+        if ancestor.key == pnt.key
+          open_children.push k 
+          continue 
+
+  open_children 
+
+
+close_children = (pnt) -> 
+  open = fetch('open_points')
+
+  if pnt 
+    pnt = fetch pnt 
+    open_children = get_open_children pnt 
+  else 
+    open_children = (k for k,v of open when k != 'key')
+
+  if open_children.length > 0 
+    for k in open_children
+      delete open[k]
+    save open
+
+close_points = (new_max) -> 
+  open = fetch('open_points')
+
+  to_close = []
+  for k,v of open 
+    if k != 'key' && v > new_max 
+      to_close.push k 
+
+  if to_close.length > 0 
+    for k in to_close
+      delete open[k]
+    save open
+
+  open 
+
+max_depth_of_open_point = -> 
+  open = fetch('open_points')
+  max = 0
+  for k,v of open 
+    if k != 'key' && v > max 
+      max = v
+  max 
+
+
+
+
+
+##############
+# DATA ENTRY
+#############
+
+dom.NEWPOINT = -> 
+  type = @props.type.key or @props.type
+  you = your_key()
+  w = 500
+
+  icon_size = point_icon_size type
+
+  DIV 
+    style:
+      position: 'relative'
+      marginLeft: icon_size + fickle.spacing
+      minHeight: icon_size + 20
+
+    POINT_ICON
+      user: you 
+      pnt: type
+
+    if !@local.editing
+      SPAN 
+        style: extend {}, list_styles.heading2,
+          #marginLeft: 68
+          color: focus_blue
+          cursor: 'pointer'
+          borderBottom: "1px solid #{focus_blue}"
+
+        onClick: (e) => 
+          @local.editing = true; save(@local)
+        
+        "Add new point"
+
+    else 
+
+      DIV 
+        style: 
+          marginLeft: -9
+          display: 'inline-block'
+          width: w
+        TEXTAREA 
+          key: 'summary'
+          ref: 'summary'
+          pattern:'^.{3,}'
+          placeholder: "Summarize your point"
+          required:'required'
+          style: extend {}, list_styles.heading2,
+            width: w
+            border: "1px solid #eaeaea"
+            outline: 'none'
+            padding: '6px 8px'
+            resize: 'none'
+
+        GROWING_TEXTAREA
+          key: 'description'
+          ref: 'description'
+          placeholder: "Add details here (optional)"
+
+          style: 
+            fontSize: fontsize.normal
+            padding: '6px 8px'
+            marginTop: 8
+            width: '100%'
+            minHeight: 40
+            border: '1px solid #eaeaea'   
+            outline: 'none'       
+
+        DIV 
+          style: 
+            marginTop: 8
+
+          SPAN 
+            style: 
+              backgroundColor: focus_blue
+              color: 'white'
+              cursor: 'pointer'
+              borderRadius: 16
+              padding: '4px 24px'
+              display: 'inline-block'
+              marginLeft: 12
+              float: 'right'
+
+            onClick: => 
+              create_point
+                parent: @props.parent
+                type: type
+                summary: @refs.summary.getDOMNode().value
+                description: @refs.description.getDOMNode().value 
+
+              @local.editing = false 
+              save @local
+
+            'Done'
+
+          SPAN 
+            style: 
+              color: '#888'
+              cursor: 'pointer'
+              float: 'right'
+              padding: '4px 0px'
+            onClick: => @local.editing = null; save(@local)
+            'cancel'
+
+          DIV style: clear: 'both'
+
+dom.NEW_LIST = -> 
+  DIV
+    style: 
+      marginTop: 55
+      marginBottom: 35
+
+    if @local.editing
+      EDIT_LIST
+        new: true
+        suggested_by: @props.suggested_by
+        done: => 
+          @local.editing = false
+          save @local
+          @props.done?()
+    else 
+      SPAN 
+        style: extend {}, list_styles.heading1,
+          color: focus_blue
+          cursor: 'pointer'
+          borderBottom: "1px solid #{focus_blue}"
+
+        onClick: => @local.editing = true; save @local
+        
+        'Start new list'
+
+dom.EDIT_LIST = -> 
+  type = if @props.type then @props.type else {}
+
+  done = => @props.done?()
+
+  DIV
+    style: 
+      minHeight: 1000
+      position: 'relative'
+
+    EDIT_TYPE 
+      type: type
+      suggested_by: @props.suggested_by
+      cancel: done
+      finished: (type, changes, copy_to_template) =>
+        f = reactive_once => 
+          suggestor = fetch @props.suggested_by
+          visit_ancestors type
+
+          if copy_to_template
+            suggestor = fetch suggestor.type
+          else
+            # If we aren't applying the changes to the template, we have to 
+            # fork the type tree locally. This means we'll have to update all
+            # descendents of @props.suggested_by to the forked type chain. 
+            desc = (pnt, visited) -> 
+              visited ||= {}
+              visited[(pnt.key or pnt)] = 1
+              pnt = fetch(pnt)
+              for child in (pnt.children or [])
+                desc child, visited
+              visited
+            descendents = desc suggestor 
+
+          return if f.loading()
+
+          # apply the changes!
+          updated_type = update_point type, changes, \
+                           (if !copy_to_template then descendents)
+
+          # ensure that the suggesting point is referenced by the updated type
+          updated_type.suggested_by ||= []
+          if suggestor.key not in updated_type.suggested_by
+            updated_type.suggested_by.push suggestor.key
+            save updated_type
+
+          # ensure the suggesting point references the updated type
+          suggests = resolve_type suggestor, 'suggests'
+          suggests ||= []
+          if updated_type.key not in suggests 
+            suggests = suggests.slice()
+            suggests.push updated_type.key 
+            if type.key && updated_type.key != type.key
+              array_remove suggests, type.key 
+            suggestor.suggests = suggests
+            save suggestor
+
+        f()
+
+        done()
+
+      cancel: done
+
+dom.EDIT_TYPE = -> 
+  LIST_PADDING = 35
+
+  if !@type
+    # editing an existing type
+    if typeof(@props.type) == 'string' or @props.type.key 
+      @type = fetch @props.type
+    else # creating a new type!
+      @type = defaults @props.type,
+        suggested_by: []
+
+  type = @type
+  @changes ||= @props.changes or {}
+  
+  if !type.key 
+    # write directly to the object when creating a new type
+    my_changes = type 
+  else
+    # If editing an existing type, we'll first write changes to a separate 
+    # object. After we're done editing, we can then apply the changes. 
+    @changes[type.key] ||= {}
+
+    my_changes = @changes[type.key]
+    if !my_changes.suggests
+      suggests = []
+      for suggestion in (resolve_type(type, 'suggests') or [])
+        suggests.push fetch(suggestion)
+
+    return SPAN null if @loading()
+
+    if !my_changes.suggests
+      my_changes.suggests = suggests
+
+  border_color = if @local.editing_suggestion 
+                   transparent_focus_blue(.2) 
+                 else 
+                   focus_blue
+
+  top_level = !!@props.suggested_by
+  prompt_for_template = false 
+  if top_level
+    suggested_by = fetch(@props.suggested_by)
+    prompt_for_template = !suggested_by.suggests && suggested_by.type
+
+  DIV
+    style: 
+      position: 'relative'
+      top: if !top_level then -60
+      left: if !top_level then 50
+    DIV 
+      style: 
+        border: "1px dashed #{border_color}"
+        backgroundColor: 'white'
+        borderRadius: 16
+        padding: LIST_PADDING
+        position: 'relative'
+        top: -LIST_PADDING
+        left: -LIST_PADDING
+
+      DIV 
+        style: 
+          position: 'absolute'
+          top: -12
+
+        if !top_level
+          Bubblemouth 
+            apex_xfrac: .5
+            # skew_x: 20
+            # skew_y: 0
+            width: 20
+            height: 12
+            fill: 'white'
+            stroke_width: 3
+            dash_array: '15 15'
+            stroke: border_color
+
+
+      GROWING_TEXTAREA 
+        ref: 'category'
+        placeholder: "List heading"
+        onChange: (e) -> 
+          my_changes.category = e.target.value
+
+        defaultValue: my_changes.category or resolve_type(type, 'category') or ''
+
+        style: extend {}, list_styles.heading1,
+          resize: 'none'
+          outline: 'none'
+          padding: '3px 0px'
+
+      DIV 
+        style: {}
+
+        DIV 
+          style: {}
+
+          'Each item in the list should have:'
+
+        DIV null,
+          for suggestion in (my_changes.suggests or [])
+            do (suggestion) =>
+              DIV 
+                style: {}
+
+
+                @changes[suggestion.key]?.category \
+                  or suggestion.category \
+                  or resolve_type(suggestion, 'category')
+
+                SPAN
+                  style:
+                    cursor: 'pointer'
+                    textDecoration: 'underline'
+                  onClick: =>
+                    @local.editing_suggestion = JSON.stringify(suggestion)
+                    @editing = suggestion # keep out of statebus so we don't
+                                          # inadvertently save
+                    save @local 
+
+                  'Edit'
+
+                SPAN 
+                  style:
+                    cursor: 'pointer'
+                    textDecoration: 'underline'
+                  onClick: =>
+                    array_remove my_changes.suggests, suggestion
+                    @local.dummy = !@local.dummy; save @local # trigger re-render
+
+                  'Delete'
+
+        if @local.editing_suggestion
+          DIV 
+            style: 
+              color: focus_blue
+              fontWeight: 600
+            'Adding sublist'
+
+        else 
+          DIV
+            style: 
+              textDecoration: 'underline'
+              color: focus_blue
+              cursor: 'pointer'
+
+            onClick: => 
+              new_type = {__new: true}
+              my_changes.suggests ||= []
+              my_changes.suggests.push new_type
+              @local.editing_suggestion = my_changes.suggests.length
+              @editing = new_type
+              save @local
+
+            'Add sublist'
+
+      DIV 
+        style: 
+          marginTop: 8
+          visibility: if @local.editing_suggestion then 'hidden'
+
+        if top_level && prompt_for_template
+          SPAN 
+            style: 
+              backgroundColor: focus_blue
+              color: 'white'
+              cursor: 'pointer'
+              borderRadius: 16
+              padding: '4px 24px'
+              display: 'inline-block'
+              marginLeft: 12
+              float: 'right'
+
+            onClick: => @props.finished type, @changes, true
+
+            if top_level
+              "Save to all \"#{resolve_type(@props.suggested_by, 'category')}\""
+            else 
+              'Done'
+
+        SPAN 
+          style: 
+            backgroundColor: if prompt_for_template then "#eaeaea" else focus_blue
+            color: if prompt_for_template then "#222" else 'white'
+            cursor: 'pointer'
+            borderRadius: 16
+            padding: '4px 24px'
+            display: 'inline-block'
+            marginLeft: 12
+            float: 'right'
+
+          onClick: => @props.finished type, @changes
+
+          if top_level
+            if prompt_for_template
+              'Save locally'
+            else 
+              'Save'
+          else 
+            'Done'
+
+        SPAN 
+          style: 
+            color: '#888'
+            cursor: 'pointer'
+            float: 'right'
+            padding: '4px 0px'
+          onClick: => @props.cancel()
+          'cancel'
+
+        DIV style: clear: 'both'
+
+    if @local.editing_suggestion
+      done = => @local.editing_suggestion = null; save @local
+
+      EDIT_TYPE
+        type: @editing
+        changes: @changes
+        cancel: => 
+          array_remove my_changes.suggests, @editing if @editing.__new
+          @local.editing_suggestion = null; save @local
+          done()
+        finished: => 
+          delete @editing.__new
+          done()
+
+dom.EDIT_TYPE.refresh = -> 
+  if document.activeElement != @refs.category.getDOMNode() && \
+      @refs.category.getDOMNode().value == '' && \
+      !@local.editing_suggestion
+    @refs.category.getDOMNode().focus()
+
+
+
+grid_unit = (pnt, depth) -> 
+  depth ||= 0
+
+  w = fickle.window_width - 3 * fickle.gutter
+
+  w = Math.min w, fickle.max_width
+
+  if depth > 0
+    depth_cost = point_icon_size(pnt) + fickle.spacing
+    w -= depth * depth_cost
+
+  w = Math.floor(w / 3) * 3 # round down to nearest 100 so we don't 
+                                # re-layout all the time
+  w / 8
+
+text_width = (pnt, depth) -> 
+  5 * grid_unit(pnt, depth) - fickle.gutter
+
+opinion_width = (pnt, depth) -> 3 * grid_unit(pnt, depth)
+
+
+  
+style = document.createElement "style"
+style.innerHTML =   ""
+document.body.appendChild style
+
+# Handle hashes in url
+loc = fetch 'location'
+
+hash = location.hash
+if location.hash
+  loc.seek_to_hash = hash.substring(1, hash.length)
+  save loc 
+
+
+#</script>
+<script>
+  var OFFLINE_DEV = true 
+  var LOCAL_STATEBUS = true
+
+  // The statebus server we will connect to. Read by statebus_client.
+  if (window.location.hostname == 'localhost')
+    statebus_server = 'http://localhost:9375'
+  else 
+    statebus_server = 'http://considerit.us:9375'
+    
+  
+  if (LOCAL_STATEBUS)
+    var statebus_client = "/considerit-local/node_modules/statebus/client.js"
+  else 
+    var statebus_client = "https://stateb.us/client.js?v3" 
+    
+  // External scripts to load
+  var scripts_to_load = [ 
+    statebus_client
+  ]
+
+  for (script in scripts_to_load)
+    document.write("<script id=js-"+ script +  " src='" + scripts_to_load[script] + "' charset='utf-8'></script\>" )
+
+</script>
