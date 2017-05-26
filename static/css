@@ -1,0 +1,61 @@
+/* -*- mode: css -*- */
+
+body {
+    margin: 0;
+}
+body,input, textarea, select, button {
+    font-size: 14pt;
+    line-height: 1.3;
+    -webkit-font-feature-settings: 'liga' 1;
+    -moz-font-feature-settings: 'liga' 1;
+    font-family: 'Computer Modern Serif', "Computer Modern Bright", helvetica, arial;
+}
+
+kbd, tt, pre, code {
+    font-size: 14pt;
+    font-family: Inconsolata, Computer Modern Typewriter, Monaco, monospace;
+}
+
+pre tt {
+    font-size: 12pt;
+}
+
+concrete, conc {
+    font-family: Computer Modern Concrete;
+}
+
+.script {
+    font-family: Cool Script, cursive;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+.codeblock {
+    margin: 20px 40px;
+    padding: 20px;
+    background-color: #eee;
+}
+
+h1 {
+    font-family: Computer Modern Serif;        
+    font-size: 4.5em;
+    font-weight: 500;
+}
+
+h2 {
+    margin-top: 14px;
+    font-size: 28px;
+}
+
+h3 {
+    font-weight: 500;
+    font-size: 22px;
+}
+
+
+a {
+    color: #222;
+}
+

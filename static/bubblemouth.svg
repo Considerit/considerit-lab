@@ -1,0 +1,30 @@
+<svg version="1.1" viewBox="0 0 125 140" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink= "http://www.w3.org/1999/xlink">
+<defs>
+
+<filter id="x4be565aed28a22c6c498f5d58e60885e-shadow">
+<feOffset in="SourceAlpha" dx="-3" dy="-4" result="offsetblur"></feOffset>
+<feGaussianBlur in="offsetblur" stdDeviation="3" result="blur2"></feGaussianBlur>
+<feColorMatrix in="blur2" result="color" type="matrix" values="0 0 0 0  0
+0 0 0 0   0 
+0 0 0 0   0 
+0 0 0 0.4 0">
+</feColorMatrix>
+</filter>
+
+</defs>
+
+<path style="filter:url(#x4be565aed28a22c6c498f5d58e60885e-shadow);" stroke="white" stroke-width="0" stroke-dasharray="none" d="
+M  35   120
+Q   5   100
+   35    20
+Q  62.5 100
+  120   120
+"></path>
+
+<path fill="#F6F7F9" stroke="white" stroke-width="0" stroke-dasharray="none" d="
+M  35   120
+Q   5   100
+   35    20
+Q  62.5 100
+  125   120
+"></path></svg>
