@@ -126,8 +126,6 @@ dom.SET_AVATAR = ->
       you.pic = @local.cropped_base64
       save you
 
-      console.log 'saved!', @local
-
 
   headshot_display_size = 300
   DIV 
