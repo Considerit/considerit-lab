@@ -158,9 +158,9 @@ dom.TOP = ->
       DIV 
         ref: 'purpose'
         style: 
-          fontSize: 18
+          fontSize: 16
           marginLeft: 8
-          maxWidth: Math.min(fickle.window_width / 2, 700)
+          maxWidth: Math.min(fickle.window_width / 2, 500)
 
         contentEditable: true          
         onInput: (e) => 
@@ -297,7 +297,7 @@ dom.OPINION_FILTER = ->
         width: 50
         height: 50
         borderRadius: '50%'
-        backgroundColor: 'white'
+        backgroundColor: '#777'
     BR null 
     SPAN 
       style: 

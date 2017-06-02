@@ -71,50 +71,70 @@ cached_sort_order = (args) ->
 
   is_dirty = md5((o.key or o for o in items)) != md5((o.key or o for o in dirty_items))
 
-  v = fetch key 
+  v = fetch key
   if v.dirty != is_dirty
     v.dirty = is_dirty 
     save v
+
+  console.log dirty_items
   return dirty_items
 
-compare_by_sliders = (a,b) ->
-  a = fetch(a) 
-  b = fetch(b)
 
-  auto_calc_value_from_children a if a.auto_calc
-  auto_calc_value_from_children b if b.auto_calc
 
-  if a.sliders && b.sliders
-    get_average_value(b.sliders[0]) - get_average_value(a.sliders[0])
+
+
+
+compare_by_sliders = (memoized) -> 
+  (a,b) ->
+
+    for pnt in [a,b]
+      if !memoized[(pnt.key or pnt)]
+        pnt = fetch(pnt) 
+        auto_calc_value_from_children pnt if pnt.auto_calc
+        
+        memoized[(pnt.key or pnt)] =  if pnt.sliders
+                                        get_average_value(pnt.sliders[0])
+                                      else 
+                                        -1
+
+    memoized[(b.key or b)] - memoized[(a.key or a)]                   
+
+
+
+get_sorted_options = (args) ->
+  key = 'options_sort' 
+  fetch key # subscribe 
+  args ||= {}
+  if args.update_dirty || !_saved_sorts[key]
+    items = fetch("/point_root/#{fetch('forum').forum}-options").children or []
+    sort = fetch key
+
+    cached_sort_order
+      key: sort.key
+      items: items
+      sort_funk: compare_by_sliders({})
+      freshen: args.freshen
   else 
-    0
+    _saved_sorts[key] or []
 
 
-get_sorted_options = (freshen) -> 
-  items = fetch("/point_root/#{fetch('forum').forum}-options").children or []
-  sort = fetch 'options_sort' 
+get_sorted_criteria = (args) -> 
+  key = 'criteria_sort'
+  fetch key # subscribe 
+  args ||= {}
 
-  sorted = cached_sort_order
-    key: sort.key
-    items: items
-    sort_funk: compare_by_sliders
-    freshen: freshen
+  if args.update_dirty || !_saved_sorts[key]
+    items = fetch("/point_root/#{fetch('forum').forum}-criteria").children or []
+    sort = fetch key
 
-  return (sorted or [])
+    cached_sort_order
+      key: sort.key
+      items: items
+      sort_funk: compare_by_sliders({})
+      freshen: args.freshen
+  else 
+    _saved_sorts[key] or []
 
-get_sorted_criteria = (freshen) -> 
-  items = fetch("/point_root/#{fetch('forum').forum}-criteria").children or []
-
-  sort = fetch 'criteria_sort' 
-
-  sorted = cached_sort_order
-    key: sort.key
-    items: items
-    sort_funk: compare_by_sliders
-    freshen: freshen
-  
-
-  return (sorted or [])
 
 
 
@@ -246,9 +266,18 @@ dom.REFRESH_SORT_ORDER = ->
   criteria_sort = fetch 'criteria_sort'
   options_sort = fetch 'options_sort'
 
+  get_sorted_options 
+    update_dirty: true 
+  get_sorted_criteria   
+    update_dirty: true 
+
   resort = -> 
-    get_sorted_options true
-    get_sorted_criteria true
+    get_sorted_options 
+      update_dirty: true     
+      freshen: true
+    get_sorted_criteria
+      update_dirty: true     
+      freshen: true
 
   if !@initialized && !@loading()
     resort()

@@ -46,20 +46,22 @@ bus = require('statebus').serve({
 # get all users who have given an opinion in this forum
 bus('users/*').to_fetch = (k, rest) -> 
   forum = rest
-  point_in_forum = (pnt) -> 
-    return false if !pnt 
-    pnt = bus.fetch(deslash(pnt.key or pnt))
-    
-    if pnt.parent?.match( "/point_root/#{forum}-options") || pnt.parent?.match( "/point_root/#{forum}-criteria")
-      return true 
-    else if pnt.parent
-      point_in_forum(pnt.parent)
-
   users = {}
-  for k,v of bus.cache
-    if k.match(/slider\//) && v.anchor? && v.anchor.match(/\/point\//) && point_in_forum(v.anchor)
-      for vv in (v.values or [])
-        users[vv.user] = 1
+
+  # walk the tree from root
+  walk_from = (pnt) -> 
+
+    pnt = bus.fetch( deslash(pnt.key or pnt) )
+    users[(pnt.user.key or pnt.user)] = 1 if pnt.user 
+    for sldr in (pnt.sliders or [])
+      sldr = bus.fetch( deslash(sldr))
+      for o in (sldr.values or [])
+        users[o.user] = 1
+    for child in (pnt.children or [])
+      walk_from(child)
+
+  walk_from "point_root/#{forum}-options"
+  walk_from "point_root/#{forum}-criteria"
 
   { users: Object.keys(users) }
 
