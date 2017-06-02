@@ -2752,34 +2752,6 @@ orphan_selection = (key_or_object) ->
     save(parent)
 
 
-# Delete slider + selection if no one has made a slider drag
-# BUG: if someone else has slid the slider, but that slide 
-#      hasn't been synchronized to this client yet, the slider
-#      might be erroneously deleted
-delete_slider_if_no_activity = (sldr) -> 
-  sldr = fetch sldr
-  return if !(sldr.selection or sldr.anchor)
-
-  sel = fetch(sldr.selection or sldr.anchor)
-
-  for sldr in sel.sliders
-    sldr = fetch sldr
-    return if sldr.values.length > 0 #|| sldr.poles[1]?.length > 0
-
-  delete_selection(sel)
-
-# Remove current user from this slider, if they're on it
-remove_self_from_slider = (sldr) -> 
-  sldr = fetch sldr
-  return if !(sldr.selection or sldr.anchor)
-
-  you = your_key()
-  for o, idx in sldr.values
-    if o.user == you 
-      sldr.values.splice(idx, 1)
-      save sldr
-      break
-
 ####
 # moving posts around 
 

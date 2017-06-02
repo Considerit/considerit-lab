@@ -2,6 +2,40 @@ DEFAULT_SLIDER_VAL = 0.5
 SLIDER_COLOR = '#999'
 feedback_orange = '#F19135'
 
+
+# Remove current user from this slider, if they're on it
+window.remove_self_from_slider = (sldr) -> 
+  sldr = fetch sldr
+  return if !(sldr.selection or sldr.anchor)
+
+  you = your_key()
+  for o, idx in sldr.values
+    if o.user == you 
+      sldr.values.splice(idx, 1)
+      save sldr
+      break
+
+# Delete slider + selection if no one has made a slider drag
+# BUG: if someone else has slid the slider, but that slide 
+#      hasn't been synchronized to this client yet, the slider
+#      might be erroneously deleted
+window.delete_slider_if_no_activity = (sldr) -> 
+  sldr = fetch sldr
+  return if !(sldr.selection or sldr.anchor or sldr.point)
+
+  anchor = fetch(sldr.selection or sldr.anchor or sldr.point)
+
+  idx = anchor.sliders.indexOf sldr.key 
+  if idx > -1 
+    anchor.sliders.splice(idx, 1)
+    save anchor
+
+  del sldr 
+
+
+
+
+
 dom.SLIDERGRAM = -> 
   sldr = fetch @props.sldr
   local_sldr = fetch(shared_local_key(sldr))
@@ -24,6 +58,15 @@ dom.SLIDERGRAM = ->
                 # on this slidergram. The 2 is for putting a slidergram being
                 # edited above the other ones, so that the drop down label
                 # selection works. 
+
+    # on option-click, delete self (or slidergram as whole if already empty)
+    onClick: (e) => 
+      if e.altKey
+        if sldr.values.length == 0
+          delete_slider_if_no_activity(sldr)
+        else 
+          remove_self_from_slider(sldr)
+
 
     DIV 
       key: 'opinion_area'
