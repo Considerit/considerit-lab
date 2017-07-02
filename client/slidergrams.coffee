@@ -25,12 +25,13 @@ window.delete_slider_if_no_activity = (sldr) ->
 
   anchor = fetch(sldr.selection or sldr.anchor or sldr.point)
 
-  idx = anchor.sliders.indexOf sldr.key 
-  if idx > -1 
-    anchor.sliders.splice(idx, 1)
-    save anchor
+  if !sldr.values || sldr.values.length == 0
+    idx = anchor.sliders.indexOf sldr.key 
+    if idx > -1 
+      anchor.sliders.splice(idx, 1)
+      save anchor
 
-  del sldr 
+    del sldr 
 
 
 
@@ -58,6 +59,9 @@ dom.SLIDERGRAM = ->
                 # on this slidergram. The 2 is for putting a slidergram being
                 # edited above the other ones, so that the drop down label
                 # selection works. 
+      display: 'flex'
+      flexDirection: 'row'
+      alignItems: 'flex-end'
 
     # on option-click, delete self (or slidergram as whole if already empty)
     onClick: (e) => 
@@ -72,7 +76,8 @@ dom.SLIDERGRAM = ->
       key: 'opinion_area'
       ref: 'opinion_area'        
       style: 
-        display: 'inline-block'
+        flex: 2
+        #display: 'inline-block'
 
       onMouseEnter: if !read_only then (e) => 
         if !has_opined && !local_sldr.tracking_mouse 
@@ -102,7 +107,7 @@ dom.SLIDERGRAM = ->
           width: slidergram_width
           #height: 1
           position: 'relative'
-          top: 1
+          #top: 1
           borderTop: "1px solid #{@props.slider_color or SLIDER_COLOR}"
           # paddingBottom: 3
 
@@ -129,26 +134,21 @@ dom.SLIDERGRAM = ->
 
     if !@props.no_label
 
-      if @props.draw_label
-        @props.draw_label
-          key: sldr.key
-          sldr: sldr
-          height: @props.height
+      LABEL_TAG = @props.draw_label or BASIC_SLIDER_LABEL
+      DIV  
+        style: 
+          marginLeft: 5
+          fontWeight: 200
+          color:  if local_sldr.editing_label 
+                    '#eaeaea' 
+                  else 
+                    @props.slider_color or SLIDER_COLOR
 
-      else 
-        DIV  
+        DIV 
           style: 
-            position: 'absolute'
-            left: '100%'
-            marginLeft: 5
-            top: @props.height - 13 
-            fontWeight: 200
-            color:  if local_sldr.editing_label 
-                      '#eaeaea' 
-                    else 
-                      @props.slider_color or SLIDER_COLOR
+            marginBottom: -11
 
-          BASIC_SLIDER_LABEL     
+          LABEL_TAG
             key: sldr.key
             sldr: sldr
             height: @props.height
