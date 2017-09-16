@@ -1,4 +1,3 @@
-window.considerit_salmon = '#df6264'
 
 fickle.register (upstream_vars) -> 
   outer_gutter = 10
@@ -13,16 +12,82 @@ fickle.register (upstream_vars) ->
     cell_width: 150
   }
 
-style = document.createElement "style"
-style.id = "overall-styles"
-style.innerHTML =   """
-  #content {
-    font-family: 'Computer Modern Serif', 'Computer Modern Bright', 'Helvetica', arial;
-  }
-"""
-document.head.appendChild style
 
-dom.body = ->
+
+
+set_style """
+  [data-widget="BODY"]  {
+    font-family: 'Raleway', Georgia,Cambria,"Times New Roman",Times,serif; // Helvetica Neue, Segoe UI, Helvetica, Arial, sans-serif; 
+    font-size: 16px;
+    color: black;
+    line-height: 1.4;
+    font-weight: normal;
+    font-weight: 300;
+    -webkit-font-feature-settings: 'liga' 1;
+    -moz-font-feature-settings: 'liga' 1;  
+    text-rendering: optimizeLegibility;  
+  } [data-widget="BODY"] h1, [data-widget="BODY"] h2, [data-widget="BODY"] h3 {
+    //font-family: 'Trocchi', 'Roboto Condensed', 'Helvetica', arial;
+    
+    font-family: 'Brandon Grotesque', 'Raleway', Helvetica, arial;
+    font-weight: 400;
+    //letter-spacing: 1px;
+  } [data-widget="BODY"] h1 {
+    font-size: 48px;
+    margin-bottom: 20px;
+    line-height: 1.2;
+    font-weight: 400;
+  }
+
+  [data-widget="BODY"] .script {
+    font-family: 'Brandon Grotesque', 'Cool Script', 'Helvetica', arial;
+    font-weight: 300;
+  }
+
+  [data-widget="BODY"] a {
+    //color: #{considerit_salmon};
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+
+  * {box-sizing: border-box;}
+  html, body {margin: 0; padding: 0;}
+  p {margin: 16px 0; }
+  button, a {
+    cursor: pointer;
+  }
+
+  textarea, input[type='text'], input[type='email'], button {
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    font-family: inherit;
+    letter-spacing: inherit;
+  }
+
+  button, input[type='submit'] {
+    background-color: #{considerit_salmon};
+    border: none;
+    color: white;
+    font-weight: 700;
+  }
+
+  button[disabled], input[type='submit'][disabled] {
+    opacity: .25;
+  }
+
+  [data-widget="BASIC_SLIDER_LABEL"] {
+    font-size: 20px;
+  }
+
+""", 'main-style'
+
+
+
+dom.BODY = ->
   current_user = fetch '/current_user'
   loc = fetch 'location'
 
@@ -34,6 +99,7 @@ dom.body = ->
   if !f.forum?
     f.forum = forum 
     save f 
+    return SPAN null
 
   return SPAN null if @loading()
 
@@ -45,10 +111,11 @@ dom.body = ->
       style: 
         opacity: .2 if !current_user.logged_in && auth.start
 
+
       
       DIV 
         style: 
-          display: 'flex'
+          display: if @local.tawking then 'flex'
 
         if @local.tawking
           DIV 
@@ -70,7 +137,9 @@ dom.body = ->
 
         DIV 
           style: 
-            flex: if @local.tawking then 3 else 1 
+            flex: if @local.tawking then 3
+            minHeight: 700
+
 
           TOP()
 
@@ -84,9 +153,14 @@ dom.body = ->
           #   onClick: => @local.tawking = !@local.tawking; save @local
           #   'Tawk'
 
+          REFRESH_SORT_ORDER()
           MULTICRITERIA
             options: "/point_root/#{fetch('forum').forum}-options"  
-            criteria: "/point_root/#{fetch('forum').forum}-criteria"  
+            criteria: "/point_root/#{fetch('forum').forum}-criteria" 
+
+
+      LAB_FOOTER() 
+
 
 
       StateDash()
@@ -103,19 +177,30 @@ dom.body = ->
         zIndex: 999999
         width: '100%'
 
-      if !current_user.logged_in && auth.start
-        AUTH
-          login: auth.try_login or false
-      else if auth.edit_profile
-        EDIT_PROFILE()
-      else if auth.set_avatar 
-        SET_AVATAR()
+      AUTH()
+
 
 dom.TOP = -> 
   auth = fetch 'auth'
   current_user = fetch '/current_user'
 
   config = fetch "/config/#{forum}"
+  loc = fetch 'location'
+
+  return SPAN null if @loading()
+
+  if !config.our_purpose? && loc.query_params.decision
+    config.our_purpose = decodeURI(loc.query_params.decision)
+    save config
+    delete loc.query_params.decision 
+    save loc
+
+  if !config.who_we_are? && loc.query_params.who
+    config.who_we_are = decodeURI(loc.query_params.who)
+    save config
+    delete loc.query_params.who 
+    save loc
+
 
   HEADER 
     style: 
@@ -123,6 +208,12 @@ dom.TOP = ->
       #maxWidth: fickle.window_width * .95
       padding: 0
 
+    PROTOTYPE_DISCLAIMER
+      message: "Deslider is a prototype. Don't rely on it!"
+      email_subject: 'Feedback about Deslider'
+      style: 
+        padding: '12px 28px'
+    
     DIV 
       key: 'auth'
       style: 
@@ -140,7 +231,7 @@ dom.TOP = ->
       style: 
         textAlign: 'left'
         paddingTop: 50
-        paddingLeft: 50
+        paddingLeft: 28
 
 
       H1 
@@ -153,20 +244,19 @@ dom.TOP = ->
         onInput: (e) => 
           config.who_we_are = @refs.title.getDOMNode().textContent
           save config 
-        config.who_we_are or "We're humans...(describe who you are)"
+        config.who_we_are or "We are..."
 
-      DIV 
+      TEXT 
         ref: 'purpose'
+        value: config.our_purpose or "...and we're trying to decide..."
         style: 
           fontSize: 16
           marginLeft: 8
-          maxWidth: Math.min(fickle.window_width / 2, 500)
+          width: Math.min(fickle.window_width / 2, 500)
 
-        contentEditable: true          
         onInput: (e) => 
-          config.our_purpose = @refs.purpose.getDOMNode().textContent
+          config.our_purpose = e.target.value
           save config 
-        config.our_purpose or "We're evaluating projects...(describe your purpose)"
 
 
       OPINION_WEIGHTS()
@@ -179,10 +269,13 @@ dom.OPINION_WEIGHTS = ->
 
   return SPAN null if !current_user.logged_in && all_users.length < 2
 
+  @local.show ?= true 
+
   toggleShow = => 
     @local.show = !@local.show 
     save @local 
 
+  return SPAN null if all_users.length < 2
   DIV 
     style: 
       #position: 'fixed'
@@ -191,7 +284,7 @@ dom.OPINION_WEIGHTS = ->
       backgroundColor: 'white'
       zIndex: 99  
       borderRadius: '4px 4px 0 0' 
-      marginTop: 8
+      marginTop: 24
 
 
     SPAN 
@@ -203,6 +296,7 @@ dom.OPINION_WEIGHTS = ->
         cursor: 'pointer'
         padding: 4
         borderRadius: '4px 4px 0 0' 
+        textDecoration: 'underline'
 
       onClick: toggleShow
       onKeyPress: (e) => 
@@ -214,7 +308,9 @@ dom.OPINION_WEIGHTS = ->
 
 
     if @local.show 
-      DIV null, 
+      DIV 
+        style: 
+          marginTop: 8
 
         if all_users?.length > 1
           if all_users[all_users.length - 1] == your_key()
@@ -254,15 +350,23 @@ dom.OPINION_WEIGHTS = ->
 
 window.get_all_users = -> 
   f = fetch('forum')
-  fetch("/users/#{f.forum}").users 
+  fetch("/all_users/#{f.forum}").users 
 
 
 dom.OPINION_FILTER = -> 
-  opinion = fetch 'opinion'
+  
 
-  if !opinion.selected? && @props.default
+  select_opinion = => 
+    opinion = fetch 'opinion'
     opinion.selected = @props.label 
     save opinion 
+    @props.funk()
+    resort_items()
+
+  opinion = fetch 'opinion'
+  
+  if !opinion.selected? && @props.default
+    select_opinion()
 
   selected = opinion.selected == @props.label 
 
@@ -275,19 +379,12 @@ dom.OPINION_FILTER = ->
       border: 'none'
       borderBottom: "2px solid #{if selected then considerit_salmon else 'transparent'}"
 
-    onClick: (e) => 
-      opinion = fetch 'opinion'
-      opinion.selected = @props.label 
-      save opinion
-      @props.funk()
+    onClick: select_opinion
 
     onKeyPress: (e) =>
       if e.which in [32, 13]
         e.preventDefault()
-        opinion = fetch 'opinion'
-        opinion.selected = @props.label 
-        save opinion
-        @props.funk()
+        select_opinion()
 
     FACEPILE
       users: @props.users
@@ -310,64 +407,31 @@ dom.OPINION_FILTER = ->
 
   
 
-orange = '#e89e00'
-dom.AUTH_FIRST = -> 
-  current_user = fetch '/current_user'
 
-  return SPAN null if current_user.logged_in
-  
-  start_auth = (login) ->
-    auth = fetch 'auth' 
-    auth.start = true 
-    auth.try_login = login
-    save auth
 
-  button_style = 
-    backgroundColor: 'transparent'
-    border: 'none'
-    textDecoration: 'underline'
-    color: 'white'
-    #fontStyle: 'italic'
-    # fontFamily: 'sans-serif'
-    fontSize: 18
-    cursor: 'pointer'
-    padding: 0
-    fontWeight: 600
 
-  if !current_user.logged_in 
 
-    DIV 
+dom.PROTOTYPE_DISCLAIMER = -> 
+  DIV 
+    style: extend {}, (@props.style or {}),
+      backgroundColor: considerit_salmon
+      color: 'white'
+
+
+    H3 
       style: 
-        backgroundColor: orange
-        color: 'white'
-        #fontStyle: 'italic'
-        # fontFamily: 'sans-serif'
-        fontSize: 18
-        display: 'inline-block'
-        padding: '4px 4px'
-        marginBottom: 10
-      "Please "
+        fontWeight: 700
+        marginBottom: 8
+        marginTop: 0
 
-      BUTTON 
-        onClick: -> start_auth(true)
-        onKeyPress: (e) -> 
-          if e.which in [13, 32]
-            start_auth(true)
-        style: button_style
+      @props.message 
 
-        "login" 
+    SPAN null, 
+      "Please email me at "
 
-      " or " 
-      BUTTON 
-        style: button_style
+      A 
+        href: "mailto:travis@consider.it?subject=#{@props.email_subject}"
+        'travis@consider.it'
 
-        onClick: -> start_auth(false)
-        onKeyPress: (e) -> 
-          if e.which in [13, 32]
-            start_auth(false)
-
-        "create an account"
-
-      " to participate"
-
+      " if you think I should continue building it."
 
