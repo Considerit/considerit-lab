@@ -193,7 +193,6 @@ dom.LIST = ->
   total_points = points.length
 
   points.sort (a,b) -> 
-    console.log b.sliders?[0]?.values?.length
     b.sliders?[0]?.values?.length - a.sliders?[0]?.values?.length
 
   if @local.collapsed

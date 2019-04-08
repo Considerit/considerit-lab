@@ -1,52 +1,33 @@
-
+local = false 
 port = 3606
+global.upload_dir = 'static/uploads/'
+
+require('dotenv').config 
+  path: 'confs/consideritus.env'
+
+slidergram_client_handlers = require('./server/slidergrams.coffee')
+require './server/email'
+auth_server = require './server/auth_server'
+
 bus = require('statebus').serve({
   file_store: 
     filename: 'db/discuss'
     backup_dir: 'db/backups/discuss'
-  certs: 'certs/considerit-us'
-  upload_dir: '/static/uploads'
-  
+  certs: if !local then {
+    private_key: 'certs/considerit-us/private-key'
+    certificate: 'certs/considerit-us/certificate'
+  }
+
   port: port
   client: (client) ->
-
-    client('slider/*').to_save = (obj) ->
-      u = client.fetch('current_user')
-
-      old = bus.fetch(obj.key)
-
-      if old 
-        # prevent clobbering of slides
-        missing = []
-
-        for oldslide in (old.values or [])        
-          found = false 
-
-          for slide in (obj.values or [])
-            if slide.user == oldslide.user 
-              found = true 
-              break 
-          if !found 
-            missing.push oldslide 
-
-        if missing.length > 0 
-          obj.values ||= []  
-          
-          for slide in missing 
-            # only the current user is allowed to delete their slide
-            if deslash(slide.user) != u.user.key
-              obj.values.push slide
-
-      bus.save obj
-
+    slidergram_client_handlers(bus,client)
+    auth_server(bus, client)    
     client.shadows(bus)
+
 })
+
+
 bus.honk = false
-deslash = (key) -> 
-  if key?[0] == '/'
-    key = key.substr(1)
-  else 
-    key
 
 for k,v of bus.cache
   if k.match 'user/'
@@ -111,7 +92,7 @@ bus.http.get '/*', (r,res) =>
     <script src="#{prefix}/client/#{app}.coffee"></script>
     <script src="#{prefix}/static/vendor/md5.js"></script>
     <script src="#{prefix}/static/vendor/d3.quadtree.js"></script>
-
+    <script src="#{prefix}/static/vendor/emojione.js"></script>
 
     <link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/6.0.0/normalize.min.css" rel="stylesheet">
 
@@ -148,4 +129,19 @@ bus.http.get '/*', (r,res) =>
 
   res.send(html)
 
+migrate_data = -> 
+  migrate = bus.fetch('migrations')
+
+  if !migrate.make_login_email
+    console.warn 'MIGRATING to email login!'
+
+    for key, usr of bus.cache
+      if key.match('user/') && key.split('/').length == 2 && usr.email
+        usr.login = usr.email
+        bus.save usr
+
+    migrate.make_login_email = true
+    bus.save migrate 
+
+migrate_data()
 

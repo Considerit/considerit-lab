@@ -1,0 +1,24 @@
+#!/bin/sh
+
+sudo service nginx stop
+sudo certbot renew
+sudo service nginx restart
+
+rm -f ~/considerit-lab/certs/deslider.com/private-key;
+rm -f ~/considerit-lab/certs/deslider.com/certificate;
+sudo cp /etc/letsencrypt/live/deslider.com/privkey.pem ~/considerit-lab/certs/deslider.com/private-key;
+sudo cp /etc/letsencrypt/live/deslider.com/fullchain.pem ~/considerit-lab/certs/deslider.com/certificate;
+
+rm -f ~/considerit-lab/certs/considerit-us/private-key
+rm -f ~/considerit-lab/certs/considerit-us/certificate
+sudo cp /etc/letsencrypt/live/considerit.us/privkey.pem ~/considerit-lab/certs/considerit-us/private-key
+sudo cp /etc/letsencrypt/live/considerit.us/fullchain.pem ~/considerit-lab/certs/considerit-us/certificate
+
+
+rm -f ~/considerit-lab/certs/slider-chat/private-key
+rm -f ~/considerit-lab/certs/slider-chat/certificate
+sudo cp /etc/letsencrypt/live/slider.chat/privkey.pem ~/considerit-lab/certs/slider-chat/private-key
+sudo cp /etc/letsencrypt/live/slider.chat/fullchain.pem ~/considerit-lab/certs/slider-chat/certificate
+
+
+pm2 restart /home/considerit/considerit-lab/ecosystem.config.js

@@ -1,3 +1,6 @@
+
+insert_grab_cursor_style()
+
 dom.MULTICRITERIA_SUMMARY = -> 
   options = fetch(@props.options).children
   criteria = fetch(@props.criteria).children 
@@ -8,7 +11,6 @@ dom.MULTICRITERIA_SUMMARY = ->
     style: 
       padding: 20
       marginTop: 40
-    GRAB_CURSOR()
 
     TABLE 
       style:

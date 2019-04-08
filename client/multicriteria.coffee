@@ -4,7 +4,7 @@ th_style = extend {},
 
 cell_style = 
   textAlign: 'center'
-  minHeight: 50
+  #minHeight: 50
 
 criteria_weight_style = extend {}, th_style, 
   fontSize: 36
@@ -15,7 +15,7 @@ criteria_weight_style = extend {}, th_style,
   # fontFamily: 'Computer Modern Serif'
 
 item_style = 
-  fontSize: 16
+  fontSize: 20
   fontWeight: 400
   letterSpacing: -1
   #lineHeight: 1.2
@@ -36,6 +36,9 @@ style.innerHTML =   """
   } 
 
   [data-widget='HEADER_ROW'] > div, [data-widget='EVALUATION_ROW'] > div, [data-widget='ADD_CRITERIA_ROW'] > div, [data-widget='OVERALL_SCORE_ROW'] > div {
+    padding: 10px 16px 3px 16px;
+  }
+  [data-widget='CRITERIA_TEXT'][data-moored='true'] {
     padding: 10px 16px 3px 16px;
   } 
 """
@@ -76,7 +79,7 @@ cached_sort_order = (args) ->
   is_dirty = md5(( (o.key or o) for o in items)) != md5(( (o.key or o) for o in dirty_items))
 
   v = fetch key
-  if !!v.dirty != is_dirty
+  if !v.dirty? || !!v.dirty != is_dirty
     v.dirty = !freshen && is_dirty
     save v
 
@@ -141,19 +144,23 @@ get_sorted_criteria = (args) ->
   sort = fetch key # subscribe 
   args ||= {}
 
+
   if args.update_dirty || !_saved_sorts[key]
 
     root = fetch("/point_root/#{fetch('forum').forum}-criteria")
     return [] if Object.keys(root).length < 2
     items = root.children or []
     
-    cached_sort_order
+    results = cached_sort_order
       key: sort.key
       items: items
       sort_funk: compare_by_sliders({})
       freshen: args.freshen
   else 
-    _saved_sorts[key] or []
+    results = _saved_sorts[key] or []
+
+  console.log 'sorted criteria:', (fetch(r).text for r in results), args.update_dirty
+  results
 
 
 
@@ -188,13 +195,19 @@ dom.MULTICRITERIA = ->
 
   options = options.children or []
   
+  for criterion in (criteria.children or [])
+    fetch criterion
+
   for option in options
     sync_option_with_criteria
       option: option 
       criteria: criteria
 
   if @loading() && !@local.initialized
+    console.log 'RETURNING!', {options, criteria}
     return SPAN null 
+
+  console.log 'NOT loading',  {options, criteria}
 
   leaveFocus = => 
     active = fetch 'active_cells'
@@ -240,8 +253,12 @@ dom.MULTICRITERIA = ->
 
 dom.MULTICRITERIA.refresh = -> 
 
-  if !@local.initialized? && @refs.table 
+  if !@local.initialized? && @refs.table && !@loading()
+
     @local.initialized = true 
+    initial_loading = fetch 'initial_loading'
+    initial_loading.loaded = true 
+    save initial_loading
 
     window.addEventListener 'scroll', (e) =>  
 
@@ -313,25 +330,10 @@ dom.EVALUATION_ROW = ->
     style: 
       backgroundColor: if @props.row_idx % 2 == 0 then '#f8f8f8'
 
-    ROW_HEADER
+    CRITERIA_CELL
       key: 'header'
       pnt: criterion
       row_idx: @props.row_idx
-
-    ROW_HEADER
-      key: 'header-moored'
-      pnt: criterion
-      row_idx: @props.row_idx
-      moored: true
-
-    OPINION_CELL
-      key: criterion.key or criterion
-      pnt: criterion 
-      saturation: 0
-      lightness: criterion_lightness
-      row: @props.row_idx 
-      col: 0 
-      active: active_cells.row == @props.row_idx || active_cells.col == 0
 
     for option, idx in get_sorted_options() 
       continue if criterion.key not of crit2opt2eval
@@ -344,7 +346,7 @@ dom.EVALUATION_ROW = ->
           row: @props.row_idx
           col: idx + 1
           hue: evaluation_hue
-          active: active_cells.row == @props.row_idx || active_cells.col == idx + 1
+          active: active_cells.row == @props.row_idx || active_cells.col == idx
 
     DIV # dummy for add option
       style: 
@@ -363,9 +365,10 @@ window.resort_items = ->
 wait_for_bus ->
   initialized = false  
   track_dirty_sort_order = bus.reactive ->
+    initial_loading = fetch 'initial_loading'
     f = fetch 'forum'
 
-    return if !f.forum || f.forum == ''
+    return if !f.forum || f.forum == '' || !initial_loading.loaded
 
     get_sorted_options 
       update_dirty: true 
@@ -394,12 +397,16 @@ dom.REFRESH_SORT_ORDER = ->
     if !@time || selected != @selected
       @time = Date.now() / 1000
       @selected = fetch('opinion').selected
-    time_to_resort = 10 - Math.round(Date.now() / 1000 - @time)
+    time_to_resort = 1000 - Math.round(Date.now() / 1000 - @time)
     if time_to_resort <= 0 
       resort_items()
       dirty = false
       @time = null
       @selected = null
+
+
+
+  console.log 'DIRTY?', dirty, options_sort, criteria_sort
 
   return SPAN null if !dirty
   
@@ -450,14 +457,14 @@ dom.HEADER_ROW = ->
     to_focus.pnt = pnt.key
     save to_focus
 
-  active = fetch 'active_cells'
-
   setFocus = (idx) => 
+    active = fetch 'active_cells'
     active.col = idx
     active.row = null
     save active 
 
   leaveFocus = => 
+    active = fetch 'active_cells'
     active.col = null
     save active 
 
@@ -466,6 +473,10 @@ dom.HEADER_ROW = ->
   moored_headers = fetch('moored_headers')
   unmoored = moored_headers.header_row_unmoored
   unmoored_x = moored_headers.first_col_unmoored
+
+  loc = fetch 'location'
+
+  criteria_focused = loc.query_params.criteria 
   
   style = extend {}, (@props.style or {})
 
@@ -491,28 +502,61 @@ dom.HEADER_ROW = ->
 
     DIV 
       style: extend {}, criteria_weight_style, 
-        textAlign: 'right'
-        width: fickle.cell_width
+        width: if criteria_focused then fickle.first_col_width * 1.5 else fickle.first_col_width
         backgroundColor: if @props.row_idx % 2 == 1 then '#f8f8f8' else 'white'
         borderBottom: '1px solid #bbb'
-        #visibility: if unmoored_x || unmoored then 'hidden'
+        borderRight: '1px solid #bbb'
 
+
+        #visibility: if unmoored_x || unmoored then 'hidden'
+      #onMouseEnter: do(idx) => => setFocus('criteria')
+      #onMouseLeave: leaveFocus
+      #onFocus: do(idx) => => setFocus('criteria')
+      #onBlur: leaveFocus
+
+      # DIV 
+      #   style: 
+      #     width: fickle.cell_width
+      #     #textAlign: 'right'
 
       'Criteria'
 
-    DIV 
-      style: extend {}, criteria_weight_style, 
-        textAlign: 'center'
-        width: fickle.cell_width
-        borderBottom: '1px solid #bbb'
-        position: 'relative'
-      onMouseEnter: do(idx) => => setFocus(0)
-      #onMouseLeave: leaveFocus
-      onFocus: do(idx) => => setFocus(0)
-      #onBlur: leaveFocus
+      A 
+        style: 
+          color: '#aaa'
+          textDecoration: 'underline'
+          padding: '0 12px'
+          fontSize: 14
+          fontWeight: 400
+          cursor: 'pointer'
 
-      if get_sorted_criteria().length > 0 
-        'Weight'
+        onClick: -> 
+          if loc.query_params.criteria
+            delete loc.query_params.criteria
+          else 
+            loc.query_params.criteria = true 
+          save loc 
+
+        if criteria_focused
+          'hide descriptions'
+        else 
+          'show descriptions'
+
+
+
+    # DIV 
+    #   style: extend {}, criteria_weight_style, 
+    #     textAlign: 'center'
+    #     width: fickle.cell_width
+    #     borderBottom: '1px solid #bbb'
+    #     position: 'relative'
+    #   onMouseEnter: do(idx) => => setFocus(0)
+    #   #onMouseLeave: leaveFocus
+    #   onFocus: do(idx) => => setFocus(0)
+    #   #onBlur: leaveFocus
+
+    #   if get_sorted_criteria().length > 0 
+    #     'Weight'
 
     for option,idx in get_sorted_options()
 
@@ -521,9 +565,9 @@ dom.HEADER_ROW = ->
         style: extend {}, option_header_style, th_style, cell_style,
           width: fickle.cell_width
           borderBottom: '1px solid #bbb'
-        onMouseEnter: do(idx) => => setFocus(idx + 1)
+        onMouseEnter: do(idx) => => setFocus(idx)
         #onMouseLeave: leaveFocus
-        onFocus: do(idx) => => setFocus(idx + 1)
+        onFocus: do(idx) => => setFocus(idx)
         #onBlur: leaveFocus
 
 
@@ -581,9 +625,10 @@ dom.HEADER_ROW.refresh = ->
 
 wait_for_bus -> 
   evaluation_to_criteria_map = bus.reactive -> 
+    initial_loading = fetch 'initial_loading'
     f = fetch 'forum'
 
-    return if !f.forum || f.forum == ''
+    return if !f.forum || f.forum == '' || !initial_loading.loaded
 
     crit2opt2eval = 
       key: 'evaluation_to_criteria'
@@ -611,13 +656,110 @@ wait_for_bus ->
 
 
 
-dom.ROW_HEADER = ->
-  moored_headers = fetch('moored_headers')
-  moorable = @props.moored
-  unmoored_x = moored_headers.first_col_unmoored
-  scroll = fetch 'scrolltop'
+dom.CRITERIA_CELL = ->
+
+  active_cells = fetch 'active_cells'
+
+  loc = fetch 'location'
+  focused = loc.query_params.criteria
+
+
+  width = if focused then fickle.first_col_width * 1.5 else fickle.first_col_width
+  text_width = width - 118 - 20 - 16 - 32
+
+  sty_col = 
+    width: width
+    backgroundColor: if @props.row_idx % 2 == 0 then '#f8f8f8' else 'white'
+
+  # if !focused 
+  #   extend sty_col,
+  #     textAlign: 'right'
+
+
+  pnt = fetch @props.pnt
+
+  sldr = fetch(pnt.sliders[0])
+  if Object.keys(sldr).length == 1
+    return DIV null
+
+  if pnt.auto_calc
+    auto_calc_value_from_children pnt
 
   
+
+  DIV 
+    style: extend {}, option_header_style, sty_col, 
+      borderRight: '1px solid #bbb'
+
+
+    CRITERIA_TEXT
+      pnt: @props.pnt
+      row_idx: @props.row_idx
+      moorable: false 
+      width: text_width
+      focused: focused
+
+    CRITERIA_TEXT
+      pnt: @props.pnt
+      row_idx: @props.row_idx
+      moorable: true 
+      height: @local.height
+      top: @local.top 
+      width: text_width
+      focused: focused
+
+
+    DIV 
+      style: 
+        display: 'inline-block'
+        marginLeft: 18
+
+
+      SLIDERGRAM
+        sldr: sldr
+        width: 100
+        height: 20
+        no_label: true
+        no_feedback: false
+        read_only: !!pnt.auto_calc
+
+    if focused 
+
+      DIV 
+        style: 
+          textAlign: 'left'
+          width: text_width
+
+        TEXT 
+          key: "editable-description-#{pnt.key}"
+          style: 
+            fontSize: 13
+            color: '#6c6c6c'
+            width: '100%' #width - 100 - 20 - 16
+            backgroundColor: 'transparent'
+            letterSpacing: 0
+            lineHeight: 1.4
+
+          value: pnt.description or 'add description' 
+          onInput: (e) => 
+            pnt.description = e.target.value
+            save pnt
+
+
+dom.CRITERIA_CELL.refresh = -> 
+  node = @getDOMNode()
+
+  if node 
+    top = node.offsetTop
+    height = node.offsetHeight
+
+    if @local.top != top || @local.height != height
+      @local.top = top
+      @local.height = height
+      save @local 
+
+
+dom.CRITERIA_TEXT = ->
   setFocus = => 
     active_cells = fetch 'active_cells'
     active_cells.row = @props.row_idx 
@@ -629,28 +771,37 @@ dom.ROW_HEADER = ->
     active_cells.row = null
     save active_cells 
 
+  moorable = @props.moorable
 
-  sty_col = 
-    textAlign: 'right'
-    width: fickle.cell_width
-    backgroundColor: if @props.row_idx % 2 == 0 then '#f8f8f8' else 'white'
+  moored_headers = fetch('moored_headers')
+  unmoored_x = moored_headers.first_col_unmoored
+
+  scroll = fetch 'scrolltop'
 
   if moorable
-    extend sty_col, 
+    sty_col = 
       position: 'fixed'
       left: 0
-      top: @local.top
+      top: @props.top
       transform: "translate(0, #{-scroll.top}px)"
-      height: @local.height
+      height: @props.height
       zIndex: 999
       visibility: if !unmoored_x then 'hidden'
+      backgroundColor: if @props.row_idx % 2 == 0 then '#f8f8f8' else 'white'
+      width: @props.width + 32
+  else 
+    sty_col = 
+      verticalAlign: 'top'
+      display: 'inline-block'
+      width: @props.width
 
-  else if unmoored_x
+  if unmoored_x && !moorable
     extend sty_col,
       visibility: 'hidden'
 
   DIV 
-    style: extend {}, option_header_style, sty_col
+    style: sty_col
+    'data-moored': moorable
 
     onMouseEnter: setFocus
     #onMouseLeave: leaveFocus
@@ -661,21 +812,16 @@ dom.ROW_HEADER = ->
       point: @props.pnt
       autofocus: (moorable && unmoored_x) || (!moorable && !unmoored_x)
       style: extend {}, item_style, 
-        textAlign: 'right'
+        #textAlign: if !@props.focused then 'right'
         verticalAlign: 'middle'
+        width: '100%'
+        fontSize: 20
 
-dom.ROW_HEADER.refresh = -> 
-  if @props.moored
-    node = @getDOMNode()
 
-    if node 
-      top = node.offsetTop
-      height = node.offsetHeight
 
-      if @local.top != top || @local.height != height
-        @local.top = top
-        @local.height = height
-        save @local 
+
+
+
 
 dom.ADD_CRITERIA_ROW = -> 
   criteria = fetch @props.criteria 
@@ -697,7 +843,7 @@ dom.ADD_CRITERIA_ROW = ->
   DIV null,
     for idx in [0,1]
       sty_col = 
-        textAlign: 'right'
+        #textAlign: 'right'
         width: fickle.cell_width
         backgroundColor: if @props.row_idx % 2 == 1 then '#f8f8f8' else 'white'
 
@@ -766,7 +912,8 @@ dom.ADD_CRITERIA_ROW.refresh = ->
 
 dom.OVERALL_SCORE_ROW = -> 
   options = fetch(@props.options).children or []
-
+  loc = fetch 'location'
+  criteria_focused = loc.query_params.criteria
   
   setFocus = => 
     active = fetch 'active_cells'
@@ -786,22 +933,18 @@ dom.OVERALL_SCORE_ROW = ->
 
   DIV null,
 
-    DIV 
-      style: 
-        width: fickle.cell_width
-
 
     DIV 
       style: extend {}, criteria_weight_style,
-        textAlign: 'center'
-        width: fickle.cell_width
+        textAlign: 'right'
+        width: if criteria_focused then fickle.first_col_width * 1.5 else fickle.first_col_width
 
       onMouseEnter: setFocus
       onMouseLeave: leaveFocus
       onFocus: setFocus
       onBlur: leaveFocus
 
-      'Overall'
+      'Overall scores'
 
     for option, col_idx in get_sorted_options()
       OPINION_CELL
@@ -810,7 +953,7 @@ dom.OVERALL_SCORE_ROW = ->
         hue: evaluation_hue
         row: 9999 
         col: col_idx + 1
-        active: active_cells.row == 9999 || active_cells.col == col_idx + 1
+        active: active_cells.row == 9999 || active_cells.col == col_idx
 
     DIV # dummy for add option
       style: 
@@ -818,7 +961,6 @@ dom.OVERALL_SCORE_ROW = ->
 
 
 dom.OPINION_CELL = -> 
-
   pnt = fetch @props.pnt
   criterion = @props.criterion
   if @props.criterion
@@ -833,6 +975,7 @@ dom.OPINION_CELL = ->
 
   if pnt.auto_calc
     auto_calc_value_from_children pnt
+
 
   saturation = if @props.saturation? then @props.saturation else 50
   if criterion
@@ -880,7 +1023,7 @@ dom.OPINION_CELL = ->
     @local.focused = false
     save @local
 
-  show_slider = @local.focused || active
+  show_slider = @props.show_slider || @local.focused || active
 
   DIV     
     onMouseEnter: setFocus
@@ -890,7 +1033,7 @@ dom.OPINION_CELL = ->
 
 
     style: extend {}, (@props.style or {}), cell_style,
-      backgroundColor: if my_value > -1 then "hsl(#{hue}, #{saturation}%, #{lightness}%)"
+      backgroundColor: if !@props.show_slider && my_value > -1 then "hsl(#{hue}, #{saturation}%, #{lightness}%)"
       width: fickle.cell_width
       display: 'flex'
       flexDirection: 'column'        
@@ -1005,10 +1148,11 @@ dom.TEXT = ->
   if (@props.focus_now || @local.focus_now) && !@local.editing 
     @local.editing = true 
 
+
   if @local.editing
     AUTOSIZEBOX extend @props,
       ref: 'editor'
-      value: txt
+      defaultValue: txt
       onBlur:  (e) => @local.editing = false; save @local; onBlur?(e) 
       style: editor_style
       autofocus: true
@@ -1021,7 +1165,7 @@ dom.TEXT = ->
 
     DIV extend {}, @props,
       className: 'text_editor' + (@props.className or '')
-      dangerouslySetInnerHTML: __html: txt
+      dangerouslySetInnerHTML: __html: if txt.indexOf('<') > -1 && txt.indexOf('>') > -1 then txt else txt.replace(/\n/g, '<br />')
       style: editor_style
       onClick: (e) => 
         if !txt || txt.length == 0 
@@ -1044,10 +1188,10 @@ auto_calc_value_from_children = (pnt) ->
     child = fetch child 
     continue if !child.sliders? || child.sliders.length == 0 
 
-    csldr = fetch child.sliders[0]
+    csldr = fetch child.sliders[0] 
 
     # get my rating, if any, for this dimension
-    v = get_your_slide csldr 
+    v = get_your_slide csldr
     continue if !v 
 
     # get my or the group's weight for the criteria
@@ -1055,17 +1199,21 @@ auto_calc_value_from_children = (pnt) ->
     continue if !criterion.sliders or criterion.sliders.length == 0 
     crit_sldr = fetch criterion.sliders[0]
     weight = get_your_slide crit_sldr
-    if weight == null 
-      sum = 0
-      for w in crit_sldr.values 
-        sum += w.value         
-      weight = sum / crit_sldr.values.length
+
+    if weight == null # you haven't slide, we'll default to .5 weight
+      # sum = 0 # default to group's weight
+      # for w in crit_sldr.values 
+      #   val = w.value
+      #   sum += val
+      # weight = sum / crit_sldr.values.length
+      weight = .5
     else 
       weight = weight.value
 
-    ratings.push [v.value,weight]
+    ratings.push [v.value, weight]
 
   return if ratings.length == 0
+
 
   #####
   # combine ratings across individual dimensions by weight 
@@ -1075,6 +1223,7 @@ auto_calc_value_from_children = (pnt) ->
   rat_sum = 0
   for r in ratings 
     rat_sum += r[1]
+
 
   for r in ratings 
     overall_score += r[0] * r[1]

@@ -62,6 +62,7 @@ style.innerHTML =   """
   } span[data-widget='AVATAR'] {
     background-color: #62B39D;
     text-align: center;
+    display: inline-block;
   } span[data-widget='AVATAR'] span {
     color: white;
     pointer-events: none;
@@ -85,7 +86,7 @@ document.head.appendChild style
 # the purpose of showing a tooltip name. So we use event delegation instead. 
 document.addEventListener "mouseover", (e) ->
   return if !create_tooltip?
-  if e.target.getAttribute('data-user') && e.target.getAttribute('data-showtooltip') == 'true'
+  if e.target.getAttribute?('data-user') && e.target.getAttribute?('data-showtooltip') == 'true'
     name = e.target.getAttribute('data-user')
     color = e.target.getAttribute('data-color') or '#414141'
     create_tooltip name, e.target, 
@@ -98,6 +99,6 @@ document.addEventListener "mouseover", (e) ->
 
 document.addEventListener "mouseout", (e) ->
   return if !clear_tooltip?
-  if e.target.getAttribute('data-user') && e.target.getAttribute('data-showtooltip') == 'true'
+  if e.target.getAttribute?('data-user') && e.target.getAttribute('data-showtooltip') == 'true'
     clear_tooltip()
 

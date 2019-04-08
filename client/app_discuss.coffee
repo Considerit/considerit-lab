@@ -90,13 +90,8 @@ dom.body = ->
         zIndex: 9999
         width: '100%'
 
-      if !current_user.logged_in && auth.start
-        AUTH
-          login: auth.try_login or false
-      else if auth.edit_profile
-        EDIT_PROFILE()
-      else if auth.set_avatar 
-        SET_AVATAR()
+      AUTH
+        login_field: 'email'
 
 
 dom.TOP = -> 

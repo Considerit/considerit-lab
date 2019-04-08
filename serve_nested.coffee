@@ -1,44 +1,49 @@
+local = false 
+
 port = 3006
+global.upload_dir = 'static/uploads/'
+require('dotenv').config 
+  path: 'confs/consideritus.env'
+
+slidergram_client_handlers = require('./server/slidergrams.coffee')
+require './server/email'
+auth_server = require './server/auth_server'
+
+
 bus = require('statebus').serve({
   port: port
   file_store: 
     filename: 'db/nested'
     backup_dir: 'db/backups/nested'
-  certs: 'certs/considerit-us'
-  upload_dir: '/static/uploads'
+  certs: if !local then {
+    private_key: 'certs/considerit-us/private-key'
+    certificate: 'certs/considerit-us/certificate'
+  }
   
   client: (client) ->
+    slidergram_client_handlers(bus, client)
+    auth_server(bus, client)    
 
-    client('slider/*').to_save = (obj) ->
-      u = client.fetch('current_user')
+    client('point/*').to_delete = (key, t) ->
+      pnt = bus.fetch key
 
-      old = bus.fetch(obj.key)
+      for sel in (pnt.selections or [])
+        bus.delete deslash(sel)
 
-      if old 
-        # prevent clobbering of slides
-        missing = []
-        idd = []
-        for oldslide in (old.values or [])        
-          found = false 
+      # delete children
+      for child in (pnt.children or [])
+        bus.delete deslash(child)
 
-          for slide in (obj.values or [])
-            if slide.user == oldslide.user 
-              found = true 
-              break 
-          if !found 
-            missing.push oldslide 
-          else 
-            idd.push oldslide
+      if pnt.parent 
+        parent = bus.fetch(deslash(pnt.parent))
+        i = parent.children.findIndex (p) -> pnt.key == deslash(p)
 
-        if missing.length > 0 
-          obj.values ||= []  
-          
-          for slide in missing 
-            # only the current user is allowed to delete their slide
-            if deslash(slide.user) != u.user.key
-              obj.values.push slide
+        if i > -1
+          parent.children.splice(i, 1)
+          bus.save(parent)
 
-      bus.save obj
+      bus.delete key
+      t.done()
 
     client.shadows(bus)
 })
@@ -121,7 +126,8 @@ bus.http.get '/*', (r,res) =>
 
       <script src="#{prefix}/static/vendor/md5.js"></script>
       <script src="#{prefix}/static/vendor/d3.quadtree.js"></script>
-
+      <script src="#{prefix}/static/vendor/emojione.js"></script>
+      
       <script>
         (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
         (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
@@ -141,4 +147,20 @@ bus.http.get '/*', (r,res) =>
 
   res.send(html)
 
+
+migrate_data = -> 
+  migrate = bus.fetch('migrations')
+
+  if !migrate.make_login_email
+    console.warn 'MIGRATING to email login!'
+
+    for key, usr of bus.cache
+      if key.match('user/') && key.split('/').length == 2 && usr.email
+        usr.login = usr.email
+        bus.save usr
+
+    migrate.make_login_email = true
+    bus.save migrate 
+
+migrate_data()
 

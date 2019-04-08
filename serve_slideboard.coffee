@@ -1,14 +1,27 @@
 port = 3015
+global.upload_dir = 'static/uploads/'
+
+local = false 
+require('dotenv').config 
+  path: 'confs/slideboard.env'
+
+require './server/email'
+auth_server = require './server/auth_server'
+
+
 bus = require('statebus').serve({
   port: port
   file_store: 
     save_delay: 10000
-    filename: 'db/slideboard'
-    backup_dir: 'db/backups/slideboard'
-  certs: 'certs/slider-chat'
-  upload_dir: '/static/uploads'
+    filename: './db/slideboard'
+    backup_dir: './db/backups/slideboard'
+  certs: if !local then {
+    private_key: 'certs/slider-chat/private-key'
+    certificate: 'certs/slider-chat/certificate'
+  }
   
   client: (client) ->
+    auth_server(bus, client)
 
     # client('slider/*').to_save = (obj) ->
     #   u = client.fetch('current_user')
@@ -313,7 +326,12 @@ bus.http.get '/*', (r,res) =>
       <script type="coffeedom">
       bus.honk = false
       window.forum = "#{channel}"
-      #</script><script src="/node_modules/statebus/client.js" server="#{server}"></script>
+      #</script><script src="#{prefix}/node_modules/statebus/client.js" server="#{server}"></script>
+
+      <script src="#{prefix}/node_modules/statebus/extras/react.js" charset="utf-8"></script>
+      <script src="#{prefix}/node_modules/statebus/extras/sockjs.js" charset="utf-8"></script>
+      <script src="#{prefix}/node_modules/statebus/extras/coffee.js" charset="utf-8"></script>
+      <script src="#{prefix}/node_modules/statebus/statebus.js" charset="utf-8"></script>
 
       <script src="#{prefix}/static/vendor/md5.js"></script>
       <script src="#{prefix}/static/vendor/d3.quadtree.js"></script>
@@ -328,6 +346,7 @@ bus.http.get '/*', (r,res) =>
       <script src="#{prefix}/client/presence.coffee"></script>
       <script src="#{prefix}/client/state_dash.coffee"></script>
 
+      <script src="#{prefix}/client/slidergram-textanchor.coffee"></script>
       <script src="#{prefix}/client/slidergrams.coffee"></script>
 
       <script src="#{prefix}/client/facepile.coffee"></script>
@@ -413,4 +432,19 @@ bus.http.get '/*', (r,res) =>
 #   , 1000
 
 
+migrate_data = -> 
+  migrate = bus.fetch('migrations')
+
+  if !migrate.make_login_email
+    console.warn 'MIGRATING to email login!'
+
+    for key, usr of bus.cache
+      if key.match('user/') && key.split('/').length == 2 && usr.email
+        usr.login = usr.email
+        bus.save usr
+
+    migrate.make_login_email = true
+    bus.save migrate 
+
+migrate_data()
 

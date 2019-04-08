@@ -8,7 +8,7 @@ body,input, textarea, select, button {
     line-height: 1.3;
     -webkit-font-feature-settings: 'liga' 1;
     -moz-font-feature-settings: 'liga' 1;
-    font-family: 'Computer Modern Serif', "Computer Modern Bright", helvetica, arial;
+    // font-family: 'Computer Modern Serif', "Computer Modern Bright", helvetica, arial;
 }
 
 kbd, tt, pre, code {

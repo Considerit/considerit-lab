@@ -58,6 +58,9 @@ hist_aware = !!get_script_attr('earl', 'history-aware-links')
 onload = -> 
 
   Earl.root = get_script_attr('earl', 'root') or '/'
+  if Earl.root == true # earl attribute just set with no value
+    Earl.root = '/'
+
   if window.location.pathname.match('.html')
     Earl.root += location.pathname.match(/\/([\w-_]+\.html)/)[1] + '/'
   if Earl.root[0] != '/'
@@ -78,6 +81,7 @@ window.addEventListener?('load', onload, false) or window.attachEvent?('onload',
 
 
 window.Earl =
+  seek_to_hash: false 
 
   # Updating the browser window location. 
   load_page: (url, query_params) ->
@@ -85,29 +89,30 @@ window.Earl =
     loc.host = window.location.host
     loc.query_params = query_params or {}
 
-    # if the url has query parameters, parse and merge them into params
-    if url.indexOf('?') > -1
-      [url, query_params] = url.split('?')
 
+    parser = document.createElement('a');
+    parser.href = url
+    
+    # if the url has query parameters, parse and merge them into params
+    
+    if parser.search
+      query_params = parser.search.replace('?', '')
       for query_param in query_params.split('&')
         query_param = query_param.split('=')
         if query_param.length == 2
           loc.query_params[query_param[0]] = query_param[1]
 
     # ...and parse anchors
-    hash = ''
-    if url.indexOf('#') > -1
-      [url, hash] = url.split('#')
-      url = '/' if url == ''
+    hash = parser.hash.replace('#', '')
+    # When loading a page with a hash, we need to scroll the page
+    # to proper element represented by that id. This is hard to 
+    # represent in Statebus, as it is more of an event than state.
+    # We'll set seek_to_hash here, then it will get set to null 
+    # after it is processed. 
+    Earl.seek_to_hash = hash?.length > 0
 
-      # When loading a page with a hash, we need to scroll the page
-      # to proper element represented by that id. This is hard to 
-      # represent in Statebus, as it is more of an event than state.
-      # We'll set seek_to_hash here, then it will get set to null 
-      # after it is processed. 
-      seek_to_hash = true
-
-    url ?= '/'
+    url = parser.pathname
+    url = '/' if !url || url == ''
     path = url 
     if path.substring(0, Earl.root.length) != Earl.root
       path = Earl.root + '/' + path 
@@ -126,11 +131,12 @@ window.Earl =
 # Enables history aware link. Wraps basic dom.A.
 
 if hist_aware
-
   window.dom = window.dom || {}
 
   dom.A = ->
     props = @props
+    loc = fetch 'location'
+    
     if @props.href
       href = @props.href
 
@@ -148,7 +154,6 @@ if hist_aware
           else  
             href = Earl.root + href 
           href = @props.href = href.replace('//', '/')
-
 
 
       handle_click = (event) =>
@@ -208,11 +213,14 @@ react_to_location = ->
 
     # Respond to a location change
     new_location = url_from_statebus()
+
     if @last_location != new_location 
 
       # update browser history if it hasn't already been updated
       if url_from_browser_location() != new_location
-        history.pushState loc.query_params, title, new_location.replace(/(\/){2,}/, '/').replace(/(\/)$/, '')
+        l = new_location.replace(/(\/){2,}/, '/').replace(/(\/)$/, '')
+        l = '/' if l == ''
+        history.pushState loc.query_params, title, l
 
       @last_location = new_location
 
@@ -221,14 +229,26 @@ react_to_location = ->
     # enough to deal with the mightly Webkit browser's imposition of 
     # a remembered scroll position for a return visitor upon initial 
     # page load!
-    if seek_to_hash 
-      seek_to_hash = false
-      el = document.querySelector("##{loc.hash}")
-      if el
-        $(window).scrollTop getCoords(el).top - 50
+    if Earl.seek_to_hash && !@int
+
+      @int = setInterval -> 
+        Earl.seek_to_hash = false
+        el = document.getElementById("#{loc.hash}") or document.querySelector("[name='#{loc.hash}']")
+        if el
+          window.scrollTo 0, getCoords(el).top - 50
+
+          if loc.query_params.c 
+            delete loc.query_params.c 
+            delete loc.hash
+            save loc
+
+          clearInterval @int 
+          @int = null
+
+      , 50
+
   monitor()
 
-seek_to_hash = false 
 
 url_from_browser_location = -> 
   # location.search returns the query parameters
@@ -243,7 +263,6 @@ url_from_statebus = ->
   loc = fetch 'location'
 
   url = loc.path or '/'
-
   if loc.query_params && Object.keys(loc.query_params).length > 0
     query_params = ("#{k}=#{v}" for own k,v of loc.query_params)
     url += "?#{query_params.join('&')}" 

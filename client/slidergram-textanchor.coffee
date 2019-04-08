@@ -1,8 +1,11 @@
 dom.TEXT = ->
   obj = fetch @props.obj 
   @props.attr ||= 'body'
-  local_obj = fetch shared_local_key obj
+  @props.edit_permission ?= -> true 
+  @props.autofocus ?= true 
 
+  local_obj = fetch shared_local_key obj
+  
   txt = obj[@props.attr]
 
   editor_style = defaults (@props.style or {}),
@@ -15,98 +18,107 @@ dom.TEXT = ->
     fontSize: 'inherit'
     fontFamily: 'inherit'
     backgroundColor: 'transparent'
+    width: '100%'
     position: 'relative' 
                   # positioning is to force Chrome to confine text
                   # selections to within the element. 
                   # http://stackoverflow.com/questions/14017818
 
-  if @local.editing
-    if @props.html_WYSIWYG
+  DIV 
+    onBlur: if @local.editing then (e) =>
 
-      WYSIWYG
-        obj: @props.obj
-        attr: @props.attr
-        placeholder: 'blah'
-        container_style: {}
-        style: {}
+      setTimeout =>
+        contained = closest document.activeElement, (node) => 
+          node == @getDOMNode()
 
-    else
+        return if contained 
 
-      AUTOSIZEBOX extend {}, @props,
-        ref: 'editor'
-        className: 'editor'
-        value: txt
-        style: editor_style
+        @local.editing = false
+        save @local
+        @props.onToggleEditMode(@local.editing)
+        @props.onBlur?(e) 
+           
 
-        onBlur:  (e) => 
-          @local.editing = false
-          save @local
-          @props.onToggleEditMode(@local.editing)
-          @props.onBlur?(e)    
+    if @local.editing && @props.edit_permission()
 
-        onKeyDown: (e) =>
-          @props.onKeyDown?(e)
+      if @props.html_WYSIWYG
 
-          if e.which == 8 && obj[@props.attr] == '' # delete key on empty field     
-            if (obj.children or []).length == 0
-              del obj        
-        
-        onChange: (e) => 
-          @props.onChange?(e)
+        WYSIWYG
+          obj: @props.obj
+          attr: @props.attr
+          placeholder: 'blah'
+          style: {}
+          cursor: @local.editing_position
+          autofocus: @props.autofocus
 
-          new_text = protect_leading_new_line e.target.value
-          obj[@props.attr] = new_text
-          save(obj)
+      else
+
+        AUTOSIZEBOX extend {}, @props,
+          ref: 'editor'
+          className: 'editor'
+          value: txt
+          style: editor_style
+          cursor: @local.editing_position
+          autofocus: @props.autofocus
+
+          onKeyDown: (e) =>
+            @props.onKeyDown?(e)
+
+            if e.which == 8 && obj[@props.attr] == '' # delete key on empty field     
+              if (obj.children or []).length == 0
+                del obj        
+          
+          onChange: (e) => 
+            @props.onChange?(e)
+
+            new_text = protect_leading_new_line e.target.value
+            obj[@props.attr] = new_text
+            save(obj)
 
 
-  else 
-    DIV null, 
-      STYLE """ 
-         .text_field:empty:before {
-            content: attr(placeholder);
-            display: block;
-            color: #999;
-            pointer-events: none;
-          } """
-
-      DIV extend {}, @props,
+    else 
+      props = extend {}, @props,
         ref: 'text_field'
         className: 'text_field' + (@props.className or '')
-        dangerouslySetInnerHTML: __html: txt
         style: editor_style
-
-
-        onDoubleClick: (e) => 
+        onDoubleClick: if @props.edit_permission() then (e) => 
 
           @props.onDoubleClick?(e, @local.editing)
 
           @local.editing = true
           @props.onToggleEditMode(@local.editing)
-          @local.focus_now = true
 
           pos = get_selected_text @refs.text_field.getDOMNode()
           @local.editing_position = pos?.start or 0
 
           save @local 
 
-dom.TEXT.refresh = -> 
-  if @local.editing && !@props.html_WYSIWYG
-    if @local.editing_position
-      # Focus the text area if we just clicked into the editor      
-      # use select(), not focus(), because this averts the browser from 
-      # automatically scrolling the page to the top of the text area, 
-      # which interferes with clicking inside a long post to start editing
-      @refs.editor.getDOMNode().select()
-      cursor_pos = @local.editing_position
-      @refs.editor.getDOMNode().setSelectionRange(cursor_pos, cursor_pos)
-      @local.editing_position = null
-    else if @refs.editor.getDOMNode() != document.activeElement
-      @refs.editor.getDOMNode().focus()
+          #TODO: get cursor loc and get editors to seek there
+
+
+      DIV null, 
+        STYLE """ 
+           .text_field:empty:before {
+              content: attr(placeholder);
+              display: block;
+              color: #999;
+              pointer-events: none;
+            } """
+
+
+      if @props.html_WYSIWYG
+        props.dangerouslySetInnerHTML = __html: txt
+        DIV props
+      else 
+        DIV props, markup_text(txt)
 
 
 dom.SLIDERGRAM_TEXT = -> 
+
   obj = fetch @props.obj 
   @props.attr ||= 'body'
+  @props.edit_permission ?= -> true 
+
   local_obj = fetch shared_local_key obj
 
   slidergrams = (obj.selections || [])
@@ -123,7 +135,7 @@ dom.SLIDERGRAM_TEXT = ->
     wrapper_style: defaults {}, @props.wrapper_style,
       flex: 2
     dummy: obj
-    dummy2: local_obj    
+    dummy2: local_obj
 
   DIV 
     style: 
@@ -138,72 +150,79 @@ dom.SLIDERGRAM_TEXT = ->
         position: 'relative'
 
     TEXT_WRAPPER wrapper_attrs,
+      DIV null,
+        if @props.children 
+          DIV ref: 'children',
+            @props.children 
 
-      TEXT 
-        html_WYSIWYG: @props.html_WYSIWYG
-        slidergrams: true 
-        obj: obj 
-        attr: @props.attr 
+        TEXT 
+          ref: 'slidergram_text'
+          html_WYSIWYG: @props.html_WYSIWYG
+          slidergrams: true 
+          obj: obj 
+          attr: @props.attr 
+          edit_permission: @props.edit_permission
 
-        style: 
-          width: @props.width
+          width: wrapper_attrs.width or @props.width
 
-        onToggleEditMode: (editing) => @local.editing = editing; save @local
+          onToggleEditMode: (editing) =>
+            @local.editing = editing; save @local
 
-        # enable updating anchor text of sliders given an edit
-        onSelect: (e) => 
-          editor = @getDOMNode().getElementsByClassName('editor')[0]
-          @last_selection = [editor.selectionStart, \
-                             editor.selectionEnd]
-
-        onChange: (e) =>
-          # For some reason, the very first time contenteditable is clicked 
-          # after page load, the select event isn't fired. Observed on Chrome.
-          editor = @getDOMNode().getElementsByClassName('editor')[0]
-          @last_selection ||= [editor.selectionStart, \
+          # enable updating anchor text of sliders given an edit
+          onSelect: (e) => 
+            editor = @getDOMNode().getElementsByClassName('editor')[0]
+            @last_selection = [editor.selectionStart, \
                                editor.selectionEnd]
 
-          old_text = obj[@props.attr]
-          new_text = protect_leading_new_line e.target.value
+          onChange: (e) =>
+            # For some reason, the very first time contenteditable is clicked 
+            # after page load, the select event isn't fired. Observed on Chrome.
+            editor = @getDOMNode().getElementsByClassName('editor')[0]
+            @last_selection ||= [editor.selectionStart, \
+                                 editor.selectionEnd]
 
-          if !@props.html_WYSIWYG
-            update_selection_anchors(obj, old_text, new_text, \
-                               @last_selection[0], @last_selection[1])
+            old_text = obj[@props.attr]
+            new_text = protect_leading_new_line e.target.value
 
-          obj[@props.attr] = new_text
-          save(obj)
+            if !@props.html_WYSIWYG
+              update_selection_anchors(obj, old_text, new_text, \
+                                 @last_selection[0], @last_selection[1])
 
-          local_obj.slider_positions_dirty = true
-          save local_obj
+            obj[@props.attr] = new_text
+            save(obj)
+
+            local_obj.slider_positions_dirty = true
+            save local_obj
 
 
-        # for no-edit mode
-        onDoubleClick: (e) =>
-          if slidergram_being_configured()
-            done_configuring_slidergram()
+          # for no-edit mode
+          onDoubleClick: (e) =>
+            if slidergram_being_configured()
+              done_configuring_slidergram()
 
-        onMouseDown: (e) => 
-          if !@local.editing
-            register_window_event obj, 'click', (e) => 
-              sel = window.getSelection()
-              # if there's a text selection, add a new selection w/ a new slider
-              if !sel.isCollapsed
-                e.stopPropagation()
-                e.preventDefault()
+          onMouseDown: (e) => 
+            if !@local.editing && fetch('/current_user').logged_in
+              register_window_event obj, 'click', (e) => 
+                sel = window.getSelection()
+                # if there's a text selection, add a new selection w/ a new slider
+                if !sel.isCollapsed
+                  e.stopPropagation()
+                  e.preventDefault()
 
-                create_selection
-                  pst: obj
-                  el_with_selection: @getDOMNode().getElementsByClassName('text_field')[0]
+                  create_selection
+                    pst: obj
+                    el_with_selection: @getDOMNode().getElementsByClassName('text_field')[0]
 
-                local_obj.slider_positions_dirty = true
-                save local_obj
+                  local_obj.slider_positions_dirty = true
+                  save local_obj
 
-              unregister_window_event obj
+                unregister_window_event obj
 
 
     DIV   
-      style: 
+      style: defaults {}, (@props.slidergram_container_style or {}),
         flex: 1
+        top: @local.offset or 0
         position: 'relative'
       
       for sel in slidergrams
@@ -221,6 +240,12 @@ dom.SLIDERGRAM_TEXT = ->
 
 dom.SLIDERGRAM_TEXT.refresh = ->
 
+  offset = @refs.slidergram_text.getDOMNode().getBoundingClientRect().top - @getDOMNode().getBoundingClientRect().top
+
+  if @local.offset != offset
+    @local.offset = offset
+    save @local
+
   if !@local.editing  
     obj = fetch @props.obj 
     local_obj = fetch shared_local_key obj
@@ -233,7 +258,7 @@ dom.SLIDERGRAM_TEXT.refresh = ->
       position_slidergrams
         el: @getDOMNode().getElementsByClassName('text_field')[0]
         text_obj: obj
-        slidergram_height: @props.slidergram_height or DEFAULT_SLIDERGRAM_HEIGHT
+        slidergram_height: (@props.slidergram_height or DEFAULT_SLIDERGRAM_HEIGHT) + 32/2
 
     # If a slidergram is set to active, select the anchor text in this post
     if local_obj.active_selection?
@@ -256,17 +281,18 @@ dom.SELECTION = ->
 
 
   local_sldr = fetch(shared_local_key(sldr))
+  local_pst = fetch(shared_local_key(sel.post))
+
   is_being_configured = !!local_sldr.configuring
 
-
-  style = defaults {}, @props.style, 
+  style = defaults {}, (@props.style or {}), 
     position: 'absolute'    
+    zIndex: if local_pst.active_selection == sel.key then 999 else 1
+    left: 0
     top: @props.top || sel.top + 16 + 4
                                  # 16 is for height of line of text
                                  # 4 is for the space in the slidergram below
                                  #   the slider baseline.
-    left: @props.left || 615
-    zIndex: 1
 
   slider_label = @props.label or BASIC_SLIDER_LABEL
 
@@ -287,26 +313,40 @@ dom.SELECTION = ->
         done_creating_slidergram(sldr, true)
 
     onMouseEnter: if !local_sldr.editing_label then (e) => 
-      local_pst = fetch(shared_local_key(sel.post))
       local_pst.active_selection = sel.key
       save local_pst
 
     onMouseLeave: if !is_being_configured && !local_sldr.editing_label then (e) => 
       # only remove if we haven't added ourselves
-      local_pst = fetch(shared_local_key(sel.post))          
       local_pst.active_selection = null
       save local_pst
       window.getSelection().removeAllRanges()          
 
 
     if !is_being_configured
+      logged_in = fetch('/current_user').logged_in
+      DIV null,
+        SLIDERGRAM 
+          key: sel.key or sel
+          sldr: sldr
+          height: slidergram_height
+          width: slidergram_width
+          draw_label: slider_label
+          max_avatar_radius: 15
+          one_sided: @props.one_sided
 
-      SLIDERGRAM 
-        key: sel.key or sel
-        sldr: sldr
-        height: slidergram_height
-        width: slidergram_width
-        draw_label: slider_label
+        # if !logged_in
+        #   AUTH_FIRST
+        #     before: ''
+        #     after: ' to add yourself'
+        #     show_login: true
+        #     show_create: false
+        #     style: 
+        #       backgroundColor: 'transparent'
+        #       fontSize: 12
+        #       padding: 0
+        #       color: '#a2a2a2'
+
 
     else 
 
@@ -358,6 +398,7 @@ dom.SELECTION = ->
             width: slidergram_width
             force_ghosting: true
             draw_label: slider_label
+            one_sided: true
 
 
         DIV 
@@ -766,6 +807,7 @@ make_selection_range = (parent_node, selection) ->
 update_selection_anchors = (pst, old_text, new_text, cursor_start, cursor_end) -> 
   pst = fetch pst
   to_orphan = []
+
   for sel in (pst.selections || [])
     sel = fetch(sel)
 
@@ -930,6 +972,64 @@ cache = (obj_or_key) ->
 
 
 ######
+
+markup_text = (text) ->
+  text ||= ''
+
+  for p in text.split('\n')
+    # replace a leading space with a non-breaking space
+    if p[0] == ' '
+      p = "\u00A0#{p.substring(1, p.length)}"
+
+    # defeat html collapsing spaces 
+    # (has to be done twice to make sure that odd numbers of consecutive spaces
+    # are properly guarded against collapse)
+    p = p.replace /\ \ /g, "\u00A0 "
+    p = p.replace /\ \ /g, "\u00A0 "
+
+    P 
+      style: 
+        minHeight: '22px'
+        margin: 0
+
+      if linkify?
+
+        for t in linkify.tokenize p
+          text = t.v.join('')
+          if t.isLink
+            link = linkify.find(text)
+            href = link?[0].href
+            internal = href.indexOf("slider.chat#{location.pathname}") > -1
+            if internal
+              anchor = href.split('#')
+              anchor = anchor[1] || 0            
+              href = "##{anchor}"      
+
+            if href 
+              A 
+                href: href
+                target: if !internal then '_blank'
+                onClick: (e) -> e.stopPropagation()
+                text
+            else 
+              text
+          else 
+            text
+      else 
+        p
+
+      # Insert a dummy newline to replace the one eliminated from the post body
+      # by the split. This enables us to maintain parity of character count / 
+      # positioning between the text nodes of the rendered post and the input 
+      # box during editing. This in turn makes it much easier to maintain anchor
+      # text positions on selections when text is edited. 
+      SPAN 
+        style: 
+          display: 'none'
+        '\n'
+
+
+
 
 orphan_selection = (key_or_object) -> 
   sel = fetch(key_or_object)

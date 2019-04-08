@@ -1,11 +1,20 @@
-port = 9375
+
+local = false
+
+port = 9376
+global.upload_dir = 'static/uploads/'
+require('dotenv').config 
+  path: 'confs/consideritus.env'
+
 bus = require('statebus').serve
   port: port
   file_store: 
     filename: 'db/lists'
     backup_dir: 'db/backups/lists'
-  certs: 'certs/considerit-us'
-  upload_dir: '/static/uploads'
+  certs: if !local then {
+    private_key: 'certs/considerit-us/private-key'
+    certificate: 'certs/considerit-us/certificate'
+  }
 
 bus.honk = true
 
@@ -77,7 +86,6 @@ prototypes = []
 
 bus.http.get '/*', (r,res) => 
   #local = r.host.indexOf('localhost') > -1
-  local = false
 
   paths = r.url.split('/')
   paths.shift() if paths[0] == ''

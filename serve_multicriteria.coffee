@@ -1,9 +1,16 @@
 local = false
 
+require('dotenv').config 
+  path: 'confs/deslider.env'
+
+
 port = 3666
 global.upload_dir = 'static/uploads/'
 
-slidergram_client_handlers = require('./server/slidergrams.coffee')
+slidergram_client_handlers = require('./server/slidergrams')
+require './server/email'
+auth_server = require './server/auth_server'
+
 
 bus = require('statebus').serve({
   file_store: 
@@ -18,6 +25,7 @@ bus = require('statebus').serve({
   client: (client) ->
     client.honk = false
     slidergram_client_handlers(bus, client)
+    auth_server(bus, client)
     client.shadows(bus)
 })
 
@@ -247,4 +255,23 @@ bus.http.get '/*', (r,res) =>
 
   res.send(html)
 
+
+
+
+migrate_data = -> 
+  migrate = bus.fetch('migrations')
+
+  if !migrate.make_login_email
+    console.warn 'MIGRATING to email login!'
+
+    for key, usr of bus.cache
+      if key.match('user/') && key.split('/').length == 2 && usr.email
+        usr.login = usr.email
+        bus.save usr
+
+    migrate.make_login_email = true
+    bus.save migrate 
+
+
+migrate_data()
 

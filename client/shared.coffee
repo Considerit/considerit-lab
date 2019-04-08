@@ -1,3 +1,6 @@
+window.considerit_salmon = '#F45F73' ##f35389' #'#df6264' #E16161
+
+
 # Tracking mouse positions
 # It is sometimes nice to know the mouse position. Let's just make it
 # globally available.
@@ -29,8 +32,9 @@ server_slash = (key) ->
     key
 
 
-window.new_key = (type) ->
-  '/' + type + '/' + Math.random().toString(36).substring(7)
+window.new_key = (type, text) ->
+  text ||= ''
+  '/' + type + '/' + slugify(text) + (if text.length > 0 then '-' else '') + Math.random().toString(36).substring(7)
 
 shared_local_key = (key_or_object) -> 
   key = key_or_object.key || key_or_object
@@ -44,34 +48,41 @@ window.your_key = ->
   current_user = fetch('/current_user')
   current_user.user?.key or current_user.user
 
+window.wait_for_bus = (cb) -> 
+  if !bus?
+    setTimeout -> 
+      wait_for_bus(cb)
+    , 10
+  else 
+    cb()
+
 
 ##############
 # Manipulating objects
 window.extend = (obj) ->
   obj ||= {}
   for arg, idx in arguments 
-    if idx > 0
+    if idx > 0      
       for own name,s of arg
         if !obj[name]? || obj[name] != s
           obj[name] = s
   obj
 
-window.defaults = (obj) ->
-  obj ||= {}
-  for arg, idx in arguments by -1
-    if idx > 0
-      for own name,s of arg
-        if !obj[name]?
-          obj[name] = s
-  obj
+window.defaults = (o) ->
+  obj = {}
+
+  for arg, idx in arguments by -1      
+    for own name,s of arg
+      obj[name] = s
+  extend o, obj
 
 
 
 # ensures that min <= val <= max
-within = (val, min, max) ->
+window.within = (val, min, max) ->
   Math.min(Math.max(val, min), max)
 
-crossbrowserfy = (styles, property) ->
+window.crossbrowserfy = (styles, property) ->
   prefixes = ['Webkit', 'ms', 'Moz']
   for pre in prefixes
     styles["#{pre}#{property.charAt(0).toUpperCase()}#{property.substr(1)}"]
@@ -81,10 +92,28 @@ crossbrowserfy = (styles, property) ->
 window.get_script_attr = (script, attr) ->
   sc = document.querySelector("script[src*='#{script}'][src$='.coffee'], script[src*='#{script}'][src$='.js']")
   val = sc.getAttribute(attr)
+
   if val == ''
     val = true 
   val 
   
+
+slugify = (text) -> 
+  text ||= ""
+  text.toString().toLowerCase()
+    .replace(/\s+/g, '-')           # Replace spaces with -
+    .replace(/[^\w\-]+/g, '')       # Remove all non-word chars
+    .replace(/\-\-+/g, '-')         # Replace multiple - with single -
+    .replace(/^-+/, '')             # Trim - from start of text
+    .replace(/-+$/, '')             # Trim - from end of text
+    .substring(0, 30)
+
+# Checks this node and ancestors whether check holds true
+window.closest = (node, check) -> 
+  if !node || node == document
+    false
+  else 
+    check(node) || closest(node.parentNode, check)
 
 
 ####################
@@ -108,25 +137,26 @@ window.saw_thing = (keys_or_objects) ->
 # call this method if you want your application to report to the server what users 
 # see (via saw_thing)
 window.report_seen = (namespace) ->
-  namespace ||= '' 
-  do (namespace) -> 
-    reporter = bus.reactive -> 
-      seen = fetch 'seen_in_session'
-      seen.items ||= {}
+  wait_for_bus -> 
+    namespace ||= '' 
+    do (namespace) -> 
+      reporter = bus.reactive -> 
+        seen = fetch 'seen_in_session'
+        seen.items ||= {}
 
-      to_report = []
-      for k,v of seen.items when k != 'key' && !v 
-        to_report.push k 
-        seen.items[k] = true
+        to_report = []
+        for k,v of seen.items when k != 'key' && !v 
+          to_report.push k 
+          seen.items[k] = true
 
-      if to_report.length > 0 
-        save
-          key: "/seen/#{JSON.stringify({user:your_key(), namespace: namespace})}"
-          saw: to_report
+        if to_report.length > 0 
+          save
+            key: "/seen/#{JSON.stringify({user:your_key(), namespace: namespace})}"
+            saw: to_report
 
-        save seen 
+          save seen 
 
-    reporter()
+      reporter()
 
 
 
@@ -254,15 +284,15 @@ window.getCoords = (el) ->
 
 
 
-# PULSE
-# Any component that renders a PULSE will get rerendered on an interval.
+# HEARTBEAT
+# Any component that renders a HEARTBEAT will get rerendered on an interval.
 # props: 
 #   public_key: the key to store the heartbeat at
 #   interval: length between pulses, in ms (default=1000)
 dom.HEARTBEAT = ->   
   beat = fetch(@props.public_key or 'pulse')
   if !beat.beat?
-    setInterval ->    
+    setInterval ->   
       beat.beat = (beat.beat or 0) + 1
       save(beat)
     , (@props.interval or 1000)
@@ -281,11 +311,28 @@ resizebox = (target) ->
   target.style.height = null
   while (target.rows > 1 && target.scrollHeight < target.offsetHeight )
     target.rows--
-  while (target.scrollHeight > target.offsetHeight )
+  while (target.scrollHeight > target.offsetHeight && target.rows < 999)
     target.rows++
 
 dom.AUTOSIZEBOX.up      = -> resizebox @getDOMNode()
-dom.AUTOSIZEBOX.refresh = -> resizebox @getDOMNode()
+
+dom.AUTOSIZEBOX.refresh = -> 
+  resizebox @getDOMNode()
+
+  if !@init 
+    @init = true 
+    el = @getDOMNode()
+
+    if (@props.autofocus || @props.cursor) && el != document.activeElement
+      # Focus the text area if we just clicked into the editor      
+      # use select(), not focus(), because this averts the browser from 
+      # automatically scrolling the page to the top of the text area, 
+      # which interferes with clicking inside a long post to start editing
+      el.select()
+
+    if @props.cursor && el.setSelectionRange
+      el.setSelectionRange(@props.cursor, @props.cursor)
+
 
 
 
@@ -350,8 +397,200 @@ dom.GROWING_TEXTAREA.refresh = ->
   @adjustHeight()
 
 
-dom.GRAB_CURSOR = -> 
-  STYLE """
+
+
+
+
+
+
+
+
+
+
+dom.WYSIWYG = -> 
+  my_data = fetch @props.obj
+
+  DIV 
+    style: 
+      position: 'relative'
+    onBlur: @props.onBlur
+
+    DIV 
+      style: 
+        position: 'absolute'
+        top: -28
+        left: 0
+
+      for mode in [{label: 'rich text', val: false}, {label: 'raw html', val: true}]  
+        do (mode) =>
+          BUTTON
+            style: 
+              background: 'transparent'
+              border: 'none'
+              textTransform: 'uppercase'
+              color: if !!@local.edit_code == mode.val then '#555' else '#999'
+              padding: '0px 8px 0 0'
+              fontSize: 12
+              fontWeight: 700
+              cursor: if !!@local.edit_code == mode.val then 'auto'
+
+            onClick: (e) => 
+              @local.edit_code = mode.val
+              save @local
+
+            mode.label
+
+    if @local.edit_code
+      AUTOSIZEBOX
+        style: 
+          width: '100%'
+          fontSize: 'inherit'
+        value: my_data[@props.attr]
+        autofocus: true
+        onChange: (e) => 
+          my_data[@props.attr] = e.target.value
+          save my_data
+        
+    else 
+      TRIX_WYSIWYG @props
+
+
+dom.TRIX_WYSIWYG = ->
+  
+  if !@local.initialized
+    # We store the current value of the HTML at
+    # this component's key. This allows the  
+    # parent component to fetch the value outside 
+    # of this generic wysiwyg component. 
+    # However, we "dangerously" set the html of the 
+    # editor to the original @props.html. This is 
+    # because we don't want to interfere with the 
+    # wysiwyg editor's ability to manage e.g. 
+    # the selection location. 
+    my_data = fetch @props.obj
+    @original_value = my_data[@props.attr] or ''
+    @local.initialized = true
+    save @local
+ 
+  DIV defaults {}, @props,
+    style: @props.style or {}
+
+    dangerouslySetInnerHTML: __html: """
+        <input id="#{@local.key}-input" value="#{@original_value.replace(/\"/g, '&quot;')}" type="hidden" name="content">
+        <trix-editor autofocus=#{!!@props.autofocus} class='trix-editor' input="#{@local.key}-input" placeholder='#{@props.placeholder or 'Write something!'}'></trix-editor>
+      """
+
+dom.TRIX_WYSIWYG.refresh = -> 
+  if !@init 
+    @init = true
+    editor = @getDOMNode().querySelector('.trix-editor')
+
+    editor.addEventListener 'trix-change', (e) =>
+      html = editor.innerHTML
+      my_data = fetch @props.obj
+      my_data[@props.attr] = html
+      save my_data
+
+    if @props.cursor
+      editor.editor.setSelectedRange @props.cursor
+
+
+
+
+
+# I prefer using Trix now...
+
+dom.QUILL_WYSIWYG = ->
+
+  my_data = fetch @props.obj
+
+  @supports_Quill = !!Quill
+
+  if !@local.initialized
+    # We store the current value of the HTML at
+    # this component's key. This allows the  
+    # parent component to fetch the value outside 
+    # of this generic wysiwyg component. 
+    # However, we "dangerously" set the html of the 
+    # editor to the original @props.html. This is 
+    # because we don't want to interfere with the 
+    # wysiwyg editor's ability to manage e.g. 
+    # the selection location. 
+    @original_value = my_data[@props.attr] or ''
+    @local.initialized = true
+    save @local
+
+  @show_placeholder = (!my_data[@props.attr] || (@editor?.getText().trim().length == 0)) && !!@props.placeholder
+
+  DIV 
+    style: 
+      position: 'relative'
+
+
+    if @local.edit_code || !@supports_Quill
+      AutoGrowTextArea
+        style: 
+          width: '100%'
+          fontSize: 18
+        defaultValue: my_data[@props.attr]
+        onChange: (e) => 
+          my_data[@props.attr] = e.target.value
+          save my_data
+
+    else
+
+      DIV 
+        ref: 'editor'
+        id: 'editor'
+        dangerouslySetInnerHTML:{__html: @original_value}
+        style: @props.style
+
+
+dom.QUILL_WYSIWYG.refresh = -> 
+  return if !@supports_Quill || !@refs.editor || @mounted
+  @mounted = true 
+
+  getHTML = => @getDOMNode().querySelector(".ql-editor").innerHTML
+
+  # Attach the Quill wysiwyg editor
+  @editor = new Quill @refs.editor.getDOMNode(),
+    styles: true #if/when we want to define all styles, set to false
+    placeholder: if @show_placeholder then @props.placeholder else ''
+    theme: 'snow'
+
+  keyboard = @editor.getModule('keyboard')
+  delete keyboard.bindings[9]    # 9 is the key code for tab; restore tabbing for accessibility
+
+  @editor.on 'text-change', (delta, old_contents, source) => 
+    if source == 'user'
+      my_data = fetch @props.obj
+      my_data[@props.attr] = getHTML()
+
+      if my_data[@props.attr].indexOf(' style') > -1
+        # strip out any style tags the user may have pasted into the html
+
+        removeStyles = (el) ->
+          el.removeAttribute 'style'
+          if el.childNodes.length > 0
+            for child in el.childNodes
+              removeStyles child if child.nodeType == 1
+
+        node = @editor.root
+        removeStyles node
+        my_data[@props.attr] = getHTML()
+
+      save my_data
+
+
+
+
+
+
+
+
+
+window.insert_grab_cursor_style = -> 
+  set_style """
       a { 
         cursor: pointer; 
         text-decoration: underline;
@@ -371,7 +610,7 @@ dom.GRAB_CURSOR = ->
       }
 
 
-    """
+    """, 'grab-cursor'
 
 # Takes an ISO time and returns a string representing how
 # long ago the date represents.
@@ -421,4 +660,142 @@ dom.RENDER_HTML = ->
     className: 'embedded_html'
     dangerouslySetInnerHTML:
       __html: @props.html
+
+
+
+
+
+dom.LAB_FOOTER = -> 
+  DIV 
+    style: 
+      marginTop: 40
+      padding: '20px 0 20px 0'
+      fontFamily: '"Brandon Grotesque", Raleway, Helvetica, arial'
+      borderTop: '1px solid #D6D7D9'
+      backgroundColor: '#F6F7F9'
+      color: "#777"
+      fontSize: 30
+      fontWeight: 300
+
+
+    DIV 
+      style: 
+        textAlign: 'center'        
+        marginBottom: 6
+
+      "Made by "
+
+      A 
+        onMouseEnter: => 
+          @local.hover = true
+          save @local
+        onMouseLeave: => 
+          @local.hover = false
+          save @local
+        href: 'http://consider.it'
+        target: '_blank'
+        title: 'Consider.it\'s homepage'
+        style: 
+          position: 'relative'
+          top: 6
+          left: 3
+        
+        DRAW_LOGO 
+          height: 31
+          clip: false
+          o_text_color: considerit_salmon
+          main_text_color: considerit_salmon        
+          draw_line: true 
+          line_color: '#D6D7D9'
+          i_dot_x: if @local.hover then 142 else 252
+          transition: true
+
+
+    DIV 
+      style: 
+        fontSize: 16
+        textAlign: 'center'
+
+      "An "
+      A 
+        href: 'https://invisible.college'
+        target: '_blank'
+        style: 
+          color: 'inherit'
+          fontWeight: 400
+        "Invisible College"
+      " laboratory"
+
+
+dom.LOADING_INDICATOR = -> 
+  DIV
+    className: 'loading sk-wave'
+    dangerouslySetInnerHTML: __html: """
+      <div class="sk-rect sk-rect1"></div>
+      <div class="sk-rect sk-rect2"></div>
+      <div class="sk-rect sk-rect3"></div>
+      <div class="sk-rect sk-rect4"></div>
+      <div class="sk-rect sk-rect5"></div>
+    """
+
+
+window.set_style = (sty, id) ->
+  style = document.createElement "style"
+  style.id = id if id
+  style.innerHTML = sty
+  document.head.appendChild style
+
+
+
+# loading indicator styles below are 
+# Copyright (c) 2015 Tobias Ahlin, The MIT License (MIT)
+# https://github.com/tobiasahlin/SpinKit
+set_style """
+  .sk-wave {
+    margin: 40px auto;
+    width: 50px;
+    height: 40px;
+    text-align: center;
+    font-size: 10px; }
+    .sk-wave .sk-rect {
+      background-color: rgba(223, 98, 100, .5);
+      height: 100%;
+      width: 6px;
+      display: inline-block;
+      -webkit-animation: sk-waveStretchDelay 1.2s infinite ease-in-out;
+              animation: sk-waveStretchDelay 1.2s infinite ease-in-out; }
+    .sk-wave .sk-rect1 {
+      -webkit-animation-delay: -1.2s;
+              animation-delay: -1.2s; }
+    .sk-wave .sk-rect2 {
+      -webkit-animation-delay: -1.1s;
+              animation-delay: -1.1s; }
+    .sk-wave .sk-rect3 {
+      -webkit-animation-delay: -1s;
+              animation-delay: -1s; }
+    .sk-wave .sk-rect4 {
+      -webkit-animation-delay: -0.9s;
+              animation-delay: -0.9s; }
+    .sk-wave .sk-rect5 {
+      -webkit-animation-delay: -0.8s;
+              animation-delay: -0.8s; }
+
+  @-webkit-keyframes sk-waveStretchDelay {
+    0%, 40%, 100% {
+      -webkit-transform: scaleY(0.4);
+              transform: scaleY(0.4); }
+    20% {
+      -webkit-transform: scaleY(1);
+              transform: scaleY(1); } }
+
+  @keyframes sk-waveStretchDelay {
+    0%, 40%, 100% {
+      -webkit-transform: scaleY(0.4);
+              transform: scaleY(0.4); }
+    20% {
+      -webkit-transform: scaleY(1);
+              transform: scaleY(1); } }
+  """, 'loading-indicator-styles'
+
+
 

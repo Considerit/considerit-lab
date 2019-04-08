@@ -5,11 +5,14 @@ fickle.register (upstream_vars) ->
 
   content_width = Math.max 550, upstream_vars.window_width - outer_gutter * 2 - doc_padding * 2
 
+  cell_width = 150 
+
   return {
     outer_gutter: outer_gutter
     doc_padding: doc_padding
     content_width: content_width
-    cell_width: 150
+    cell_width: cell_width
+    first_col_width: cell_width * 2.5
   }
 
 
@@ -81,6 +84,11 @@ set_style """
 
   [data-widget="BASIC_SLIDER_LABEL"] {
     font-size: 20px;
+  }
+
+  [data-widget="TEXT"] ul {
+    padding-left: 16px;
+    margin: 0;
   }
 
 """, 'main-style'
@@ -177,7 +185,8 @@ dom.BODY = ->
         zIndex: 999999
         width: '100%'
 
-      AUTH()
+      AUTH
+        login_field: 'email'
 
 
 dom.TOP = -> 

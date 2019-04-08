@@ -15,6 +15,13 @@ connections_sharing_space = (filter) ->
   
   (c for c in connections when conn.client != c.client && filter(c))
 
+active_connections = (idle_threshold, filter) -> 
+  idle_threshold ?= IDLE_THRESHOLD
+  connections_sharing_space (c) -> 
+    (!filter || filter(c)) && \
+    connection_shares_space(c) && \ 
+    (c.last_seen && new Date().getTime() - c.last_seen < idle_threshold)
+
 dom.WHO_IS_HERE = ->
   connections = connections_sharing_space()
   conn = fetch('/connection')
@@ -119,7 +126,6 @@ dom.WHO_IS_HERE = ->
           else 
             a()
 
-
 dom.CURSORS = -> 
   all_conn = fetch '/connections'
 
@@ -219,22 +225,16 @@ guess_cursor_location = (c) ->
 # Save connection when dirty
 # Rate limiting helps performance
 
-connection_is_dirty = false 
-setInterval -> 
-  if connection_is_dirty
-    conn = bus.cache['/connection']
-    save conn 
-    connection_is_dirty = false
-, 150
+if !get_script_attr('presence', 'no-updates')
+  connection_is_dirty = false 
+  setInterval -> 
+    if bus? && connection_is_dirty
+      conn = bus.cache['/connection']
+      save conn 
+      connection_is_dirty = false
+  , 150
 
 
-wait_for_bus = (cb) -> 
-  if !bus?
-    setTimeout -> 
-      wait_for_bus(cb)
-    , 10
-  else 
-    cb()
 
 #############################
 # Initialize connection & keep nsync with current user 

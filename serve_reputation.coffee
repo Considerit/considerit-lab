@@ -1,12 +1,17 @@
 
-port = 3439
+local = false 
+
+port = 3440
+global.upload_dir = 'static/uploads/'
 bus = require('statebus').serve
 
   file_store: 
     filename: 'db/reputation'
     backup_dir: 'db/backups/reputation'
-  certs: 'certs/considerit-us'
-  upload_dir: '/static/uploads'
+  certs: if !local then {
+    private_key: 'certs/considerit-us/private-key'
+    certificate: 'certs/considerit-us/certificate'
+  }
 
   port: port
   client: (client) ->

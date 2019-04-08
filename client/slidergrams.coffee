@@ -1,7 +1,7 @@
 DEFAULT_SLIDER_VAL = 0.5
 SLIDER_COLOR = '#999'
 feedback_orange = '#F19135'
-
+considerit_salmon = '#F45F73'
 
 # Remove current user from this slider, if they're on it
 window.remove_self_from_slider = (sldr) -> 
@@ -48,6 +48,12 @@ dom.SLIDERGRAM = ->
 
   slidergram_width = @props.width
 
+
+  sldr.poles ||= ['','']
+  pole_label = sldr.poles[1]
+
+  # console.log 'RENDERING value', get_your_slide(sldr)?.value
+
   DIV 
     style: 
       #width: slidergram_width
@@ -62,6 +68,7 @@ dom.SLIDERGRAM = ->
       display: 'flex'
       flexDirection: 'row'
       alignItems: 'flex-end'
+      paddingBottom: 32/2
 
     # on option-click, delete self (or slidergram as whole if already empty)
     onClick: (e) => 
@@ -70,6 +77,38 @@ dom.SLIDERGRAM = ->
           delete_slider_if_no_activity(sldr)
         else 
           remove_self_from_slider(sldr)
+    onMouseEnter: (e) => 
+      @local.hover = true 
+      save @local 
+    onMouseLeave: (e) => 
+      @local.hover = false 
+      save @local
+
+    if !@props.no_label && !@props.one_sided
+
+      LABEL_TAG = @props.draw_label or BASIC_SLIDER_LABEL
+      DIV  
+        style: 
+          marginBottom: -32/2
+          lineHeight: 0
+          marginRight: 6
+
+        LABEL_TAG
+          style: 
+            fontSize: 32
+            fontWeight: 400
+            color:  @props.slider_color or SLIDER_COLOR
+
+          key: sldr.key
+          sldr: sldr
+          height: @props.height
+          mode: 'emoji'
+          text: split_label(pole_label)[0]
+          onInput: (e) =>
+            old_text = split_label pole_label 
+            new_text = e.target.innerHTML
+            sldr.poles[1] = new_text + ' ' + (old_text[1] or '')
+            save sldr
 
 
     DIV 
@@ -77,9 +116,10 @@ dom.SLIDERGRAM = ->
       ref: 'opinion_area'        
       style: 
         flex: 2
-        #display: 'inline-block'
 
       onMouseEnter: if !read_only then (e) => 
+        @local.hover_opinion_area = true 
+        save @local 
         if !has_opined && !local_sldr.tracking_mouse 
           x_entry = mouseX - @refs.opinion_area.getDOMNode().getBoundingClientRect().left
           start_slide sldr, @props.width, 'tracking', 
@@ -88,11 +128,15 @@ dom.SLIDERGRAM = ->
 
 
       onMouseLeave: if !read_only then (e) => 
+        @local.hover_opinion_area = false 
+        save @local 
+
         # only remove if we haven't added ourselves
         if local_sldr.tracking_mouse == 'tracking'
           e.preventDefault()
           stop_slider_mouse_tracking(sldr)
       
+
 
       HISTOGRAM
         width: slidergram_width
@@ -100,58 +144,178 @@ dom.SLIDERGRAM = ->
         sldr: sldr
         show_ghosted_user: !has_opined && (local_sldr.tracking_mouse || @props.force_ghosting)
         read_only: read_only
+        max_avatar_radius: @props.max_avatar_radius
 
       DIV # slider base
         style :
-          #display: 'inline-block' 
           width: slidergram_width
-          #height: 1
           position: 'relative'
-          #top: 1
           borderTop: "1px solid #{@props.slider_color or SLIDER_COLOR}"
-          # paddingBottom: 3
+          textAlign: 'left' # prevent inherited centering from happening
 
-        # if !@props.no_l abel
-        #   DIV  
-        #     style: 
-        #       position: 'absolute'
-        #       left: -24
-        #       top: -12
-        #       color: SLIDER_COLOR
-        #       fontWeight: 200
 
-        #     dangerouslySetInnerHTML: {__html: '&mdash;'}
+        # arrowtip
+        SVG
+          style:
+            position: 'absolute'
+            right: -6
+            top: -2.5
+          width: 6
+          height: 3
+          viewBox: "0 0 6 3"
+
+          G
+            fill: @props.slider_color or SLIDER_COLOR
+            
+            POLYGON
+              points: "0,0 0,3 6,1.5"
 
         if !@props.no_feedback
           SLIDER_FEEDBACK 
+            show_handle: @local.hover_opinion_area
             sldr: sldr 
-            color: if local_sldr.dragging || \
-                      local_sldr.tracking_mouse == 'activated'
-                     feedback_orange
-                   else 
-                      '#EEB074' 
+            color: considerit_salmon
             width: @props.width
+            style: 
+              display: if !(@local.hover_opinion_area || \
+                          local_sldr.dragging || local_sldr.tracking_mouse == 'activated') \
+                        then 'none'
 
     if !@props.no_label
 
       LABEL_TAG = @props.draw_label or BASIC_SLIDER_LABEL
       DIV  
         style: 
-          marginLeft: 5
-          fontWeight: 200
-          color:  if local_sldr.editing_label 
-                    '#eaeaea' 
-                  else 
-                    @props.slider_color or SLIDER_COLOR
+          marginLeft: 12
+          marginBottom: -12
 
-        DIV 
+        LABEL_TAG
           style: 
-            marginBottom: -11
+            fontSize: 14
+            fontWeight: 400
+            color:  @props.slider_color or SLIDER_COLOR
+          key: sldr.key
+          sldr: sldr
+          height: @props.height
+          mode: 'after text'
+          text: if @props.one_sided then pole_label else split_label(pole_label)[1]
+          onInput: (e) =>
+            new_text = e.target.innerHTML
 
-          LABEL_TAG
-            key: sldr.key
-            sldr: sldr
-            height: @props.height
+            if @props.one_sided
+              sldr.poles[1] = new_text
+            else 
+              old_text = split_label pole_label 
+              sldr.poles[1] = (old_text[0] or '') + ' ' + new_text
+            save sldr
+
+
+
+
+    if @local.hover && fetch('/permissions')[you] == 'admin'
+      BUTTON
+        style: 
+          backgroundColor: 'transparent'
+          color: '#ddd'
+          fontSize: 10
+          position: 'absolute'
+          left: '100%'
+          paddingLeft: 100 
+          fontWeight: 'normal'
+        onClick: => 
+          if window.confirm('Are you sure?') 
+            del sldr
+        'Delete'
+
+
+split_label = (label) ->
+  first_part = ""
+  second_part = ""
+
+  idx = 0 
+  while true 
+    img = label.substring(idx).match(/^<img[^>]*(.*?)>(<\/img>)?/)?[0]
+    if img 
+      first_part += img 
+      idx += img.length 
+    else if label[idx] == ' '
+      second_part = label.substring(idx + 1)
+      break
+    else 
+      first_part += label[idx]
+      idx += 1
+
+    break if idx >= label.length 
+
+  [first_part, second_part]
+
+  
+
+
+
+set_style """
+  [data-widget='BASIC_SLIDER_LABEL'] .emojione {
+    width: 32px; height: 32px;
+    vertical-align: middle;
+  }
+"""
+dom.BASIC_SLIDER_LABEL = ->
+
+  sldr = fetch @props.sldr 
+
+  if !@local.text? or @props.text != @local.text
+    @local.text = @props.text or sldr.poles?[1] or '+'
+
+  if @local.text == 'undefined'
+    @local.text = ''
+
+
+  # The contenteditable label
+  DIV
+    key: 'content_editable_label' 
+    ref: 'editor'
+    spellCheck: false
+    contentEditable: true
+    style: defaults {}, (@props.style or {}),
+      border: '1px solid'
+      outline: 'none'
+      #width: if @local.focused then 300 else 'auto'
+      minHeight: 24 # firefox made short boxes when empty
+      minWidth: 32
+      whiteSpace: 'nowrap'
+      borderColor: if @local.hovering
+                     '#ddd'
+                   else 
+                     'transparent'
+
+    onInput: @props.onInput or (e) => 
+      sldr.poles ||= ['','']
+      old_text = sldr.poles[1]
+      new_text = @refs.editor.getDOMNode().innerHTML
+      sldr.poles[1] = new_text
+      save sldr
+
+    onMouseEnter: =>
+      @local.hovering = true
+      save @local
+
+    onMouseLeave: (e) => 
+      @local.hovering = false
+      save @local
+
+    onFocus: (e) => 
+      @local.focused = true 
+      save @local 
+
+    onBlur: (e) => 
+      @local.focused = false
+      @local.text = @props.text or sldr.poles?[1] or '+'
+      save @local 
+
+    dangerouslySetInnerHTML: if @local.text?.length > 0 then {__html: (if emojione? then emojione.unicodeToImage(@local.text) else @local.text)}
+
+
+
       
 
 
@@ -272,6 +436,7 @@ start_slide = (sldr, slidergram_width, slide_type, args) ->
       if local.tracking_mouse != 'tracking'
         local.dirty_opinions = true
 
+      # console.log 'SAVING slide', your_slide.value
       save target_sldr
       save local
       saw_thing target_sldr
@@ -346,8 +511,8 @@ implements_slide_draggable = (sldr, width, props) ->
 #
 # A little feedback on the slider that shows where you're dragging
 dom.SLIDER_FEEDBACK = -> 
-  handle_height = @props.handle_height || 2
-  handle_width = @props.handle_width || 1
+  handle_height = @props.handle_height or 2
+  handle_width = @props.handle_width or 1
 
   local_sldr = fetch shared_local_key(@props.sldr)  
 
@@ -362,13 +527,42 @@ dom.SLIDER_FEEDBACK = ->
     style: defaults @props.style,
       width: handle_width
       height: handle_height
-      top: -1
-      position: 'relative'
+      top: -2
+      position: 'absolute'
       #marginLeft: -handle_width / 2
       zIndex: 1
       left: 0
       width: @props.width * val
       backgroundColor: @props.color or feedback_orange #focus_blue #'#666'
+
+
+    if @props.show_handle
+      @props.draw_handle?() or SVG defaults (@props.handle_attrs or {}),
+        style: 
+          position: 'relative'
+          left: @props.width * val - 14 / 2
+        className: 'grab_cursor'
+        width: 14
+        height: 15
+        viewBox: "0 0 14 15" 
+        dangerouslySetInnerHTML: __html: """
+          <defs>
+            <path d="M986,1295 L1000,1295 L1000,1303 L986,1303 L986,1295 Z M993,1309 L986,1303 L1000,1303 L993,1309 Z" id="path-1"></path>
+            <filter x="-3.6%" y="-10.7%" width="107.1%" height="114.3%" filterUnits="objectBoundingBox" id="filter-2">
+                <feOffset dx="0" dy="-1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+                <feColorMatrix values="0 0 0 0 0.641528486   0 0 0 0 0.236649693   0 0 0 0 0.29099584  0 0 0 1 0" type="matrix" in="shadowOffsetOuter1"></feColorMatrix>
+            </filter>
+          </defs>
+          <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+              <g id="Desktop-HD-Copy-23" transform="translate(-986.000000, -1295.000000)">
+                  <g id="Rectangle-7" transform="translate(993.000000, 1302.000000) scale(1, -1) translate(-993.000000, -1302.000000) ">
+                      <use fill="black" fill-opacity="1" filter="url(#filter-2)" xlink:href="#path-1"></use>
+                      <use fill="#F45F73" fill-rule="evenodd" xlink:href="#path-1"></use>
+                  </g>
+              </g>
+          </g>
+        """
+
 
 ####
 # Histogram
@@ -388,6 +582,8 @@ dom.HISTOGRAM = ->
 
   @calcRadius = @props.calculateAvatarRadius or calculateAvatarRadius
 
+  focus_on_dragging = local_sldr.dragging || local_sldr.tracking_mouse == 'activated'
+
   DIV extend( props, 
     ref: 'histo'
     className: 'histogram'
@@ -406,20 +602,21 @@ dom.HISTOGRAM = ->
       key = md5([@props.width, @props.height, opinion_weights])
       size = opinion.size?[key]
       is_you = opinion.user == you
-      sty = 
-        # cached width/height/left/top
-        width: size?.width or 50
-        height: size?.width or 50
-        left: size?.left or 0
-        top: size?.top or 0
-
 
       props = 
         key: "histo-avatar-#{opinion.user}"
         user: opinion.user
-        style: sty
-        hide_tooltip: local_sldr.tracking_mouse == 'activated' || \
-                      !!local_sldr.dragging
+        hide_tooltip: focus_on_dragging        
+        style: 
+          # cached width/height/left/top
+          width: size?.width or 50
+          height: size?.width or 50
+          left: size?.left or 0
+          top: size?.top or 0
+          opacity: if focus_on_dragging && !is_you then .2
+          WebkitFilter: if focus_on_dragging && !is_you then 'grayscale(100%)'
+          filter: if  focus_on_dragging && !is_you then 'grayscale(100%)'  
+
 
       if is_you && !@props.read_only
         # console.log "  RE-RENDERING @ #{opinion.value}"
@@ -435,7 +632,7 @@ dom.HISTOGRAM = ->
 
     if @props.show_ghosted_user
 
-      r = @calcRadius(@props.width, @props.height, sldr.values)
+      r = @calcRadius(@props.width, @props.height, sldr.values, @props.max_avatar_radius)
       val = if local_sldr.values?[0]?
               local_sldr.values[0].value
             else 
@@ -482,12 +679,12 @@ dom.HISTOGRAM.refresh = ->
     if opinion_weights
       radii = {}
       avatars = (o for o in sldr.values when o.user of opinion_weights)
-      avatar_radius = @calcRadius(@props.width, @props.height, avatars)
+      avatar_radius = @calcRadius(@props.width, @props.height, avatars, @props.max_avatar_radius)
       for u, weight of opinion_weights
         radii[u] = weight * avatar_radius
     else 
       radii = null
-      avatar_radius = @calcRadius(@props.width, @props.height, sldr.values)
+      avatar_radius = @calcRadius(@props.width, @props.height, sldr.values, @props.max_avatar_radius)
 
 
     positionAvatars
@@ -791,7 +988,8 @@ calculateInitialLayout = (w, h, r, avatars) ->
 # area (based on a moving average of # of opinions, mapped across the
 # width and height)
 
-calculateAvatarRadius = (width, height, opinions) -> 
+calculateAvatarRadius = (width, height, opinions, max_avatar_radius) -> 
+  max_avatar_radius ?= Infinity
 
   opinions.sort (a,b) -> a.value - b.value
 
@@ -865,61 +1063,9 @@ calculateAvatarRadius = (width, height, opinions) ->
   else 
     r = Math.sqrt(width * height / opinions.length * ratio_filled) / 2
 
-  r = Math.min(r, width / 2, height / 2)
+  r = Math.min(r, width / 2, height / 2, max_avatar_radius)
 
   r
-
-
-dom.BASIC_SLIDER_LABEL = ->
-
-  sldr = fetch @props.sldr 
-
-  if !@local.text?
-    @local.text = sldr.poles?[1] or '+'
-
-  # The contenteditable label
-  DIV
-    key: 'content_editable_label' 
-    ref: 'editor'
-    spellCheck: false
-    contentEditable: true
-    style:
-      border: '1px solid'
-      outline: 'none'
-      width: if @local.focused then 300 else 'auto'
-      minHeight: 24 # firefox made short boxes when empty
-      minWidth: 50
-      whiteSpace: 'nowrap'
-      borderColor: if @local.hovering
-                     '#ddd'
-                   else 
-                     'transparent'
-
-    onInput: (e) => 
-      sldr.poles ||= ['','']
-      old_text = sldr.poles[1]
-      new_text = @refs.editor.getDOMNode().textContent
-      sldr.poles[1] = new_text
-
-      save sldr
-
-    onMouseEnter: =>
-      @local.hovering = true
-      save @local
-
-    onMouseLeave: (e) => 
-      @local.hovering = false
-      save @local
-
-    onFocus: (e) => 
-      @local.focused = true 
-      save @local 
-
-    onBlur: (e) => 
-      @local.focused = false 
-      save @local 
-
-    dangerouslySetInnerHTML: {__html: @local.text}
 
 
 

@@ -23,7 +23,7 @@ dom.FACEPILE = ->
       height: @props.avatar_style.height + Math.min(s.rows, i) * s.dy 
       width: @props.avatar_style.width
 
-    for user in @props.users
+    for user in @props.users when user
       i -= 1
       curr_column = Math.floor(i / s.rows)
       side_offset = curr_column * s.col_gap + i * s.dx

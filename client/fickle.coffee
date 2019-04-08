@@ -38,47 +38,45 @@ window.fickle =
   register: (funk) -> 
     registered_funks.push funk 
     new_funks = true 
-    i = setInterval -> 
-      if document.body 
-        be_responsive()
-        clearInterval i 
-    , 1
+    be_responsive()
+    document.addEventListener "DOMContentLoaded", be_responsive
 
-    
 be_responsive = -> 
-  
-  # the basic responsive variables
-  responsive_vars = 
-    window_width: window.innerWidth
-    window_height: window.innerHeight
-    document_width: document.body.clientWidth
-    document_height: document.body.clientHeight
+  wait_for_bus -> 
+    return if !fetch?
+    
+    # the basic responsive variables
+    responsive_vars = 
+      window_width: window.innerWidth
+      window_height: window.innerHeight
+      document_width: document.body?.clientWidth
+      document_height: document.body?.clientHeight
 
-  # Compute the custom variables that the programmer wants defined
-  for funk in registered_funks
-    derived = funk(responsive_vars)
-    for k,v of derived 
-      responsive_vars[k] = v 
+    # Compute the custom variables that the programmer wants defined
+    for funk in registered_funks
+      derived = funk(responsive_vars)
+      for k,v of derived 
+        responsive_vars[k] = v 
 
-  # only update state if we have a change
-  vars = fetch('fickle_vars')
-  changed = false
-  for own k,v of responsive_vars
-    if vars[k] != v
-      changed = true
-      vars[k] = v
+    # only update state if we have a change
+    vars = fetch('fickle_vars')
+    changed = false
+    for own k,v of responsive_vars
+      if vars[k] != v
+        changed = true
+        vars[k] = v
 
-  # Convenience method for programmers to access variables.
-  for lvar in Object.keys(vars)
-    if !prop_defined[lvar]
-      do (lvar) ->
-        prop_defined[lvar] = true
-        Object.defineProperty fickle, lvar,
-          get: -> 
-            fetch('fickle_vars')[lvar]
+    # Convenience method for programmers to access variables.
+    for lvar in Object.keys(vars)
+      if !prop_defined[lvar]
+        do (lvar) ->
+          prop_defined[lvar] = true
+          Object.defineProperty fickle, lvar,
+            get: -> 
+              fetch('fickle_vars')[lvar]
 
-  save(vars) if changed
-  vars
+    save?(vars) if changed
+    vars
 
 
 registered_funks = []
