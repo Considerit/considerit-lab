@@ -1,5 +1,10 @@
-db
+db/*
 node_modules
 certs/*
 static/uploads
 confs/*
+package-lock.json
+renew_certs
+robots.txt
+static/fonts
+ecosystem.config.js
