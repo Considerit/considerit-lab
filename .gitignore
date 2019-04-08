@@ -6,5 +6,5 @@ confs/*
 package-lock.json
 renew_certs
 robots.txt
-static/fonts
+static/fonts/*
 ecosystem.config.js
