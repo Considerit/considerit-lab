@@ -2,9 +2,11 @@ db/*
 node_modules
 certs/*
 static/uploads
+static/media
 confs/*
 package-lock.json
 renew_certs
 robots.txt
 static/fonts/*
 ecosystem.config.js
+config.json

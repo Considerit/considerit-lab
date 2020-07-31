@@ -137,7 +137,7 @@ if hist_aware
     props = @props
     loc = fetch 'location'
     
-    if @props.href
+    if @props.href && !@props.stay_away_Earl
       href = @props.href
 
       # Earl will call a click handler that the programmer passes in

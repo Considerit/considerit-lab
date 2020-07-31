@@ -23,7 +23,7 @@ fickle.register (upstream_vars) ->
     content_width = window_w - 2 * doc_padding
     author_col = Math.min(150, content_width * .15) * .8
     opinion_col = Math.max 50, content_width * .17
-    content_col = Math.max 200, Math.min(660, content_width - opinion_col - author_col - 2 * bubble_padding_x)
+    content_col = Math.max 200, Math.min(720, content_width - opinion_col - author_col - 2 * bubble_padding_x)
 
   mouth_width = content_col * .07
 
@@ -41,7 +41,7 @@ fickle.register (upstream_vars) ->
   }
 
 window.considerit_salmon = '#F45F73' ##f35389' #'#df6264' #E16161
-window.considerit_gray = '#F6F7F9'
+window.considerit_gray = '#F6F7F9' #'#f2f3f5'
 window.considerit_green = '#bdb75b'
 
 focus_blue = '#2478CC'
@@ -53,11 +53,11 @@ brandon = '"Brandon Grotesque", "Raleway", Helvetica, arial'
 set_style """
   [data-widget="BODY"]  {
     font-family: 'Raleway', Computer Modern Serif, Georgia,Cambria,"Times New Roman",Times,serif; // Helvetica Neue, Segoe UI, Helvetica, Arial, sans-serif; // 'Computer Modern Sans', 'Helvetica', arial;
-    font-size: 16px;
+    font-size: 18px;
     color: black;
-    line-height: 1.4;
+    line-height: 1.5;
     font-weight: normal;
-    font-weight: 300;
+    font-weight: 400;
     -webkit-font-feature-settings: 'liga' 1;
     -moz-font-feature-settings: 'liga' 1;  
     text-rendering: optimizeLegibility;  
@@ -71,20 +71,20 @@ set_style """
     font-size: 48px;
     margin-bottom: 20px;
     line-height: 1.2;
-    font-weight: 400;
+    font-weight: 700;
   }
 
   [data-widget="BODY"] .script {
     font-family: 'Brandon Grotesque', 'Cool Script', 'Helvetica', arial;
-    font-weight: 300;
+    font-weight: 400;
   }
 
   [data-widget="BODY"] a {
-    //color: #{considerit_salmon};
-    color: inherit;
+    color: #{considerit_salmon};
+    // color: inherit;
     text-decoration: underline;
     cursor: pointer;
-    font-weight: 500;
+    font-weight: 600;
   }
 
 
@@ -121,12 +121,16 @@ set_style """
 """
 
 
+SLIDERGRAMS_ENABLED = false 
 
 #########
 # Body: main content area
 
 insert_grab_cursor_style()
 dom.BODY = ->  
+  if bus.honk
+    bus.honk = false
+
   current_user = fetch '/current_user'
 
   loc = fetch 'location'
@@ -135,21 +139,28 @@ dom.BODY = ->
   DIV 
     style: 
       padding: "0 #{fickle.doc_padding}px"
+      background: 'linear-gradient(180deg, rgba(244,95,115,1) 80px, rgba(255,255,255,1) 80px)'
 
     DIV 
       style: 
-        marginBottom: 40
+        paddingBottom: 40
+
       PAGE_HEADER()
 
     BLOG_AUTH()
 
-    if !loc.path || loc.path == '/'
-      INTRO()
 
-    else 
-      BLOG_POST
-        key: "/post/#{loc.url}" 
-        post: "/post/#{loc.url}" 
+    DIV 
+      style: 
+        marginTop: if fickle.mobile_layout then 80 else 0
+
+      if !loc.path || loc.path == '/'
+        INTRO()
+
+      else 
+        BLOG_POST
+          key: "/post/#{loc.url}" 
+          post: "/post/#{loc.url}" 
 
     PAGE_FOOTER()
 
@@ -158,16 +169,21 @@ dom.BODY = ->
     
 
 dom.BODY.up = -> 
-  document.title = "Consider.it Blog"
+  document.title = "Travis Kriplean's blog"
 
 
 dom.BLOG_AUTH = ->
+  auth = fetch 'auth'
+  return DIV null if !auth.form 
+
   DIV 
     key: 'auth_overlay'
     style: 
       top: 0 
       zIndex: 9999
       width: '100%'
+      height: '100%'
+      position: 'fixed'
       
     AUTH
       login_field: 'email'
@@ -210,64 +226,64 @@ dom.PAGE_HEADER = ->
       marginLeft: if !fickle.mobile_layout then 20
       width: fickle.content_width
 
-    DIV 
-      key: 'logo'
-      style: 
-        position: 'relative'
-        whiteSpace: 'nowrap'
+    # DIV 
+    #   key: 'logo'
+    #   style: 
+    #     position: 'relative'
+    #     whiteSpace: 'nowrap'
 
-      if !fickle.mobile_layout
-        SPAN 
-          className: 'script'
-          style: 
-            fontSize: 34
-            color: considerit_salmon
-            lineHeight: 1
+    #   if !fickle.mobile_layout
+    #     SPAN 
+    #       className: 'script'
+    #       style: 
+    #         fontSize: 34
+    #         color: considerit_salmon
+    #         lineHeight: 1
 
-          "The "
+    #       "The "
 
 
-      A 
-        onMouseEnter: => 
-          @local.hover = true
-          save @local
-        onMouseLeave: => 
-          @local.hover = false
-          save @local
-        href: 'http://consider.it'
-        target: '_blank'
-        title: 'Consider.it\'s homepage'
-        style: 
-          position: 'relative'
-          top: 7 
+    #   A 
+    #     onMouseEnter: => 
+    #       @local.hover = true
+    #       save @local
+    #     onMouseLeave: => 
+    #       @local.hover = false
+    #       save @local
+    #     href: 'http://consider.it'
+    #     target: '_blank'
+    #     title: 'Consider.it\'s homepage'
+    #     style: 
+    #       position: 'relative'
+    #       top: 7 
         
-        DRAW_LOGO 
-          clip: false
-          o_text_color: considerit_salmon
-          main_text_color: considerit_salmon        
-          draw_line: false 
-          i_dot_x: if @local.hover then 142 else 252
-          transition: true
-          height: 36
+    #     DRAW_LOGO 
+    #       clip: false
+    #       o_text_color: considerit_salmon
+    #       main_text_color: considerit_salmon        
+    #       draw_line: false 
+    #       i_dot_x: if @local.hover then 142 else 252
+    #       transition: true
+    #       height: 36
 
-      SPAN 
-        className: 'script'
-        style: 
-          fontSize: 34
-          color: considerit_salmon
-          lineHeight: 1
+    #   SPAN 
+    #     className: 'script'
+    #     style: 
+    #       fontSize: 34
+    #       color: considerit_salmon
+    #       lineHeight: 1
 
-        " Blog"
+    #     " Blog"
 
-      HR 
-        style: 
-          border: 'none'
-          borderTop: "1px solid #D6D7D9"
-          outline: 'none'
-          position: 'absolute'
-          zIndex: -1
-          bottom: -6
-          width: 290
+    #   HR 
+    #     style: 
+    #       border: 'none'
+    #       borderTop: "1px solid #D6D7D9"
+    #       outline: 'none'
+    #       position: 'absolute'
+    #       zIndex: -1
+    #       bottom: -6
+    #       width: 290
 
 
 
@@ -292,19 +308,20 @@ dom.PAGE_HEADER = ->
           fontFamily: brandon
           position: 'absolute'
           left: 0
-          fontWeight: 400
-          color: '#888'
+          top: 20
+          fontWeight: 800
+          color: 'white' #'#888'
           textDecoration: 'none'
+          fontSize: 26
 
-        dangerouslySetInnerHTML: __html: "&lt; <span style='text-decoration: underline'>back home</span>"
+        dangerouslySetInnerHTML: __html: "&lt;&nbsp;<span style='text-decoration: underline'>back home</span>"
         
 
 dom.INTRO = -> 
 
   root = fetch "/post/#{get_forum()}_root"
   DIV 
-    style: 
-      marginTop: 64
+    style: {}
 
     BLOG_POST
       key: 'root post'
@@ -444,12 +461,13 @@ dom.POST_SUMMARY = ->
 
 
 dom.BLOG_POST = ->
-  
   @props.enable_comments ?= true 
   @props.show_meta ?= true
 
   post = fetch @props.post 
   date = post.edits?[0]?.time
+
+  return DIV null if !date 
 
   current_user = fetch('/current_user')
   loc = fetch 'location'
@@ -465,7 +483,7 @@ dom.BLOG_POST = ->
 
     DIV 
       style: 
-        marginTop: 40
+        # marginTop: 40
         display: 'flex'
         flexDirection: 'row'
         alignItems: 'flex-start'
@@ -484,6 +502,7 @@ dom.BLOG_POST = ->
           SLIDERGRAM_TEXT
             obj: post 
             attr: 'body'
+            slidergrams_disabled: true
             slidergram_width: fickle.opinion_col
             slidergram_height: fickle.slidergram_height
             edit_permission: -> fetch('/current_user').user?.key == post.user
@@ -543,7 +562,7 @@ dom.BLOG_POST = ->
 
                   "posted #{month} #{day}, #{year} by Travis Kriplean" 
 
-        if !post.published && is_author
+        if is_author && post.parent
           DIV 
             style: 
               marginLeft: 50
@@ -557,10 +576,15 @@ dom.BLOG_POST = ->
               border: 'none'
 
               onClick: ->
-                post.published = true 
+                post.published = !post.published 
                 save post
 
-              'Publish'
+              if !post.published
+
+                'Publish'
+              else 
+                'Unpublish'
+
 
         if @props.enable_comments
           DIV 
@@ -572,7 +596,7 @@ dom.BLOG_POST = ->
               post: post
 
 
-      if !fickle.mobile_layout
+      if !fickle.mobile_layout && SLIDERGRAMS_ENABLED
         logged_in = fetch('/current_user').logged_in
         DIV 
           className: 'script'
@@ -603,6 +627,7 @@ dom.BLOG_POST = ->
               letterSpacing: -1
               lineHeight: 1.2
               width: fickle.opinion_col
+
             DIV 
               style: 
                 color: considerit_salmon
@@ -645,11 +670,12 @@ dom.BLOG_POST = ->
                 'learn more'
 
 dom.BLOG_POST.refresh = ->
-  rect = @refs.title_block.getDOMNode().getBoundingClientRect()
-  instructions_top = @refs.title_block.getDOMNode().getBoundingClientRect().height - 20
-  if @local.instructions_top != instructions_top
-    @local.instructions_top = instructions_top
-    save @local
+  if @refs.title_block
+    rect = @refs.title_block.getDOMNode().getBoundingClientRect()
+    instructions_top = @refs.title_block.getDOMNode().getBoundingClientRect().height - 20
+    if @local.instructions_top != instructions_top
+      @local.instructions_top = instructions_top
+      save @local
 
 
 dom.TITLE_BLOCK = -> 
@@ -700,12 +726,66 @@ dom.COMMENTS = ->
       boxSizing: 'border-box'
       position: 'relative'
 
+
+    H1 
+      style: 
+        fontWeight: 800
+
+      "Discussion"
+
+
+
+
+    START_THREAD()
+
+    # # Divider
+    # DIV 
+    #   style: 
+    #     position: 'relative'
+    #     paddingBottom: 24
+
+    #   DIV 
+    #     style: 
+    #       boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)'
+    #       borderBottom: '1px solid #dadada'
+    #       width: fickle.window_width * 2
+    #       pointerEvents: 'none'
+    #       position: 'absolute'
+    #       height: 5
+    #       top: -5
+    #       left: -fickle.window_width
+    #       display: 'block'
+
+
+
+    DIV 
+      ref: 'posts_area'
+
+      for post,idx in (posts or [])
+        THREAD 
+          post: post
+          key: (post.key or post)
+
+    START_THREAD()
+
+
+
+
+#########
+# Thread
+#########
+
+dom.START_THREAD = ->
+  current_user = fetch '/current_user'
+  DIV 
+    position: 'relative'
+
     DIV 
       className: 'script'    
       style: 
         position: 'absolute'
         left: -fickle.bubble_padding_x * 3
-        top: -53
+        top: -22
         color: considerit_salmon
         fontSize: 22
         display: if fickle.mobile_layout then 'none'
@@ -733,73 +813,56 @@ dom.COMMENTS = ->
             verticalAlign: 'top'
             transform: 'rotate(205deg)'
 
+    if !current_user.logged_in 
+      DIV 
+        style: 
+          border: "1px dashed #aaa"
+          width: fickle.content_col
+          margin: "0px 0 55px 0"
 
-    AUTH_FIRST
-      style: 
-        backgroundColor: considerit_salmon
-        marginLeft: fickle.bubble_padding_x
-        fontFamily: brandon
+        AUTH_FIRST
+          style: 
+            backgroundColor: 'white'
+            # fontFamily: brandon
+            color: '#222'
+            fontSize: 18
+            marginBottom: 0
+            padding: "18px 36px"
+          button_style:
+            color: considerit_salmon
 
-    DIV 
-      style: 
-        #paddingBottom: 40
-        # marginTop: 15
-        display: if !current_user.logged_in then 'none'
+
+
+          before: 'Please '
+          after: ' to add a comment'
+
+    else 
 
       NEW_POST 
         key: 'new post'
-        placeholder: 'Click to write a comment.'
-        min_height: 30
-        show_border: false
+        placeholder: 'Reply to Travis\' post'
+        min_height: 72
+        show_border: true
         parent: @props.post
         wrapper_style: 
-          width: fickle.content_col - fickle.bubble_padding_x * 2
-          marginLeft: fickle.bubble_padding_x
-      
-
-    # Divider
-    DIV 
-      style: 
-        position: 'relative'
-        paddingBottom: 24
-
-      DIV 
-        style: 
-          boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)'
-          borderBottom: '1px solid #dadada'
-          width: fickle.window_width * 2
-          pointerEvents: 'none'
-          position: 'absolute'
-          height: 5
-          top: -5
-          left: -fickle.window_width
+          width: fickle.content_col # - fickle.bubble_padding_x * 2
+          # marginLeft: fickle.bubble_padding_x
+          margin: "0px 0 55px 0"
           display: 'block'
+        text_box_style:
+          padding: '2px 6px'  
 
-
-
-    DIV 
-      ref: 'posts_area'
-
-      for post,idx in (posts or [])
-        THREAD 
-          post: post
-          key: (post.key or post)
-
-
-
-
-#########
-# Thread
-#########
-
-dom.THREAD = ->
+dom.THREAD = ->  
   pst = fetch(@props.post.key or @props.post)
   pst.children ||= []
+  current_user = fetch '/current_user'
 
-
+  user_name = if pst.user then fetch(pst.user).name else 'Anonymous'
+  possessive_name = if user_name[user_name.length - 1] == 's' then "#{user_name}'" else "#{user_name}'s"
+  
   DIV 
     style: 
-      marginBottom: 40
+      marginBottom: 60
 
     POST 
       post: pst
@@ -816,21 +879,38 @@ dom.THREAD = ->
 
     DIV 
       style: 
-        paddingLeft: fickle.bubble_padding_x
+        paddingLeft: 36 #fickle.bubble_padding_x
 
-      NEW_POST 
-        key: "new_post_#{@props.post.key}"
-        placeholder: 'Add to this conversation!'
-        auth_first_params: 
-          before: 'Please '
-          after: ' to add to this conversation.'
+
+      if !current_user.logged_in 
+        DIV 
           style: 
-            fontFamily: brandon
-        min_height: 32
-        parent: @props.post
-        wrapper_style: 
-          width: fickle.content_col - fickle.bubble_padding_x * 2
-          margin: "4px 0px"
+            width: fickle.content_col
+
+          AUTH_FIRST
+            style: 
+              backgroundColor: 'white'
+              
+              color: '#999'
+              fontSize: 18
+              marginBottom: 0
+              padding: "8px 0px"
+            button_style:
+              color: '#999'
+              fontWeight: 600
+              textDecoration: 'underline'
+
+            before: 'Please '
+            after: " to reply to #{possessive_name} thread"
+      else 
+        NEW_POST 
+          key: "new_post_#{@props.post.key}"
+          placeholder: "Reply to #{possessive_name} thread"
+          min_height: 32
+          parent: @props.post
+          wrapper_style: 
+            width: fickle.content_col # - fickle.bubble_padding_x * 2
+            margin: "4px 0px"
 
 
 
@@ -868,12 +948,12 @@ dom.NEW_POST = ->
           onChange: (e) => @local.title = e.target.value; save(@local)
 
           key: 'title'
-          style:
+          style: defaults {}, (@props.text_box_style or {}),
             width: '100%'
             minHeight: @props.min_height
             maxHeight: 600
             padding: 0
-            fontSize: 16
+            fontSize: 18
             border:   if show_border
                         '1px solid #ccc'
                       else
@@ -889,12 +969,12 @@ dom.NEW_POST = ->
         onChange: (e) => @local.new_post = e.target.value; save(@local)
 
         key: 'body'
-        style:
+        style: defaults {}, (@props.text_box_style or {}),
           width: '100%'
           minHeight: @props.min_height
           maxHeight: 600
           padding: 0
-          fontSize: 16
+          fontSize: 18
           border:   if show_border
                       '1px solid #ccc'
                     else
@@ -904,97 +984,157 @@ dom.NEW_POST = ->
         placeholder: @props.placeholder
         value: @local.new_post
 
-    if @local.new_post?.length > 0 && (!@props.with_title || @local.title?.length > 0)
-      BUTTON
-        type: 'submit'
-        style: 
-          backgroundColor: considerit_salmon
-          color: 'white'
-          fontWeight: 600
-          border: 'none'
-          fontSize: 18
-          padding: '2px 16px'
-          borderRadius: 8
-          verticalAlign: 'bottom'
-          display: 'inline-block'
-          #marginLeft: 8
-          cursor: 'pointer'
-          marginTop: 4
-          marginLeft: 8
-          marginBottom: 2
+      if @local.new_post?.length > 0 && (!@props.with_title || @local.title?.length > 0)
+        BUTTON
+          type: 'submit'
+          style: 
+            backgroundColor: considerit_salmon
+            color: 'white'
+            fontWeight: 600
+            border: 'none'
+            fontSize: 18
+            padding: '2px 16px'
+            borderRadius: 8
+            verticalAlign: 'top'
+            display: 'block'
+            #marginLeft: 8
+            cursor: 'pointer'
+            marginTop: 4
+            marginLeft: 8
+            marginBottom: 2
 
 
 
-        onClick: (e) =>
-          if @local.new_post
-            @local.new_post = protect_leading_new_line(@local.new_post)
+          onClick: (e) =>
+            if @local.new_post
+              @local.new_post = protect_leading_new_line(@local.new_post)
 
-            new_post = 
-              key: new_key('post', @local.title)
-              body: @local.new_post
-              title: if @props.with_title then @local.title
-              user: your_key()
-              parent: @props.parent.key if @props.parent
-              children: if !@props.parent then []
-              forum: if !@props.parent then get_forum()
-              published: @props.publish_immediately
-              edits: [{
-                user: your_key(),
-                time: (new Date()).getTime()
-                }]
+              new_post = 
+                key: new_key('post', @local.title)
+                body: @local.new_post
+                title: if @props.with_title then @local.title
+                user: your_key()
+                parent: @props.parent.key if @props.parent
+                children: if !@props.parent then []
+                forum: if !@props.parent then get_forum()
+                published: @props.publish_immediately
+                edits: [{
+                  user: your_key(),
+                  time: (new Date()).getTime()
+                  }]
 
-            save new_post
+              save new_post
 
-            @local.new_post = ''
-            save @local
+              @local.new_post = ''
+              save @local
 
 
-        'Post'
+          'Post'
 
 
 dom.POST = -> 
   pst = fetch @props.post 
 
-  SLIDERGRAM_TEXT
-    obj: pst 
-    attr: 'body'
-    slidergram_width: fickle.opinion_col
-    slidergram_height: fickle.slidergram_height
+  DIV 
+    style: 
+      position: 'relative'
+    onClick: (e) =>
+      current_user = fetch '/current_user'
+      if current_user.logged_in && current_user.user.email == 'travis@consider.it'
+        @local.show_admin_options = !@local.show_admin_options
+        save @local
 
-    width: fickle.content_col
+    SLIDERGRAM_TEXT
+      obj: pst 
+      attr: 'body'
+      slidergram_width: fickle.opinion_col
+      slidergram_height: fickle.slidergram_height
+      slidergrams_disabled: true
 
-    edit_permission: -> fetch('/current_user').user?.key == pst.user
+      width: fickle.content_col
 
-    wrapper: BUBBLE_WRAP
-    wrapper_attributes: 
-      user: pst.user 
-      width: fickle.content_col - fickle.bubble_padding_x + 14
-      style: 
-        flex: 1
-      wrapper_style: 
-        margin: "0px #{fickle.bubble_padding_x - 14}px"
-      bubble_style: 
-        borderRadius: 18
-        padding: "10px 14px" #"#{fickle.bubble_padding_y / 2}px #{fickle.bubble_padding_x}px #{fickle.bubble_padding_y / 2}px #{fickle.bubble_padding_x}px"
-        #boxShadow: 'none'
-        backgroundColor: @props.bgcolor or considerit_gray
-        minHeight: 54
-      mouth_style:
-        width: 20 #fickle.mouth_width / 2 
-        top: 6
-        transform: 'rotate(270deg) scaleX(-1)'
-        left: -20 + 1 #- 2
-        # display: if fickle.mobile_layout then 'none'
-      mouth_shadow: 
-        dy: -1
-        dx: 3
-        opacity: .2
-      avatar_style: 
-        top: -12
-        left: -70
-        borderRadius: '50%'
-        width: 50
-        height: 50
+      edit_permission: -> fetch('/current_user').user?.key == pst.user
+
+      wrapper: BUBBLE_WRAP
+      wrapper_attributes: 
+        user: pst.user 
+        width: fickle.content_col #- fickle.bubble_padding_x + 14
+        style: 
+          flex: 1
+        wrapper_style: 
+          # margin: "0px #{fickle.bubble_padding_x - 14}px"
+          margin: 0
+        bubble_style: 
+          borderRadius: 18
+          padding: "24px 36px" #"#{fickle.bubble_padding_y / 2}px #{fickle.bubble_padding_x}px #{fickle.bubble_padding_y / 2}px #{fickle.bubble_padding_x}px"
+          #boxShadow: 'none'
+          backgroundColor: @props.bgcolor or considerit_gray
+          minHeight: 54
+        mouth_style:
+          width: 20 #fickle.mouth_width / 2 
+          top: 6
+          transform: 'rotate(270deg) scaleX(-1)'
+          left: -20 + 1 #- 2
+          # display: if fickle.mobile_layout then 'none'
+        mouth_shadow: 
+          dy: -1
+          dx: 3
+          opacity: .2
+        avatar_style: 
+          top: -34
+          left: -100
+          borderRadius: '50%'
+          width: 100
+          height: 100
+    if @local.show_admin_options
+      button_style = 
+        display: 'block'
+        marginBottom: 2
+
+
+      parent = if pst.parent then fetch(pst.parent) else null
+
+      DIV 
+        style: 
+          position: 'absolute'
+          right: -50
+          top: 0
+          zIndex: 999
+
+        BUTTON
+          style: button_style
+          onClick: (e) => 
+            if confirm("Are you sure?")
+              console.log 'deleting'
+              parent = fetch(pst.parent)
+              idx = parent.children.indexOf pst.key 
+              parent.children.splice(idx, 1)
+              save parent
+
+          'delete'
+
+        if parent?.parent != "/post/blog_root"
+          BUTTON
+            style: button_style
+            onClick: (e) =>
+              parent = fetch(pst.parent)
+              grandparent = fetch(parent.parent)
+
+              # add post to grandparent
+              grandparent.children.push pst.key
+
+              # remove this post from parent
+              idx = parent.children.indexOf pst.key 
+              parent.children.splice(idx, 1)
+
+              # update guardian info
+              pst.parent = grandparent.key
+
+              save grandparent
+              save parent
+              save pst 
+            'pop'
+
 
 
 window.get_forum = -> 'blog'
@@ -1017,10 +1157,10 @@ protect_leading_new_line = (str) ->
 dom.TRAVIS = ->
 
   social = [
-    {f: '/static/social/linkedin.svg', l: 'https://www.linkedin.com/in/travis-kriplean/'}
-    {f: '/static/social/twitter.svg', l: 'https://twitter.com/tkriplean'}
-    {f: '/static/social/facebook.svg', l: 'https://www.facebook.com/travis.kriplean'}
-    {f: '/static/social/github.svg', l: 'https://github.com/tkriplean'}
+    {f: 'https://ddbjipgwr13mk.cloudfront.net/static/social/linkedin.svg', l: 'https://www.linkedin.com/in/travis-kriplean/'}
+    {f: 'https://ddbjipgwr13mk.cloudfront.net/static/social/twitter.svg', l: 'https://twitter.com/tkriplean'}
+    {f: 'https://ddbjipgwr13mk.cloudfront.net/static/social/facebook.svg', l: 'https://www.facebook.com/travis.kriplean'}
+    {f: 'https://ddbjipgwr13mk.cloudfront.net/static/social/github.svg', l: 'https://github.com/tkriplean'}
   ]
 
   DIV 
@@ -1034,7 +1174,7 @@ dom.TRAVIS = ->
         # padding: '0 20px'
 
       IMG 
-        src: '/static/blinking_travis.gif'
+        src: 'https://ddbjipgwr13mk.cloudfront.net/static/blinking_travis.gif'
         style: 
           width: fickle.author_col
           height: fickle.author_col * 600/292
@@ -1079,7 +1219,7 @@ dom.TRAVIS = ->
 
 dom.MAILING_LIST_SIGNUP = ->
   current_user = fetch('/current_user')
-  return SPAN null if current_user.logged_in && fetch(current_user.user.key + '/private/')?["#{get_forum()}_subscribe_to_email"]?
+  already_subscribed = current_user.logged_in && fetch(current_user.user.key + '/private/')?["#{get_forum()}_subscribe_to_email"]?
 
   lst = fetch('mailing_list')
 
@@ -1099,7 +1239,7 @@ dom.MAILING_LIST_SIGNUP = ->
       margin: 'auto'
 
 
-    if !lst.signed_up
+    if !lst.signed_up && !already_subscribed
       DIV null, 
         DIV 
           style: 
@@ -1108,7 +1248,7 @@ dom.MAILING_LIST_SIGNUP = ->
             color: considerit_salmon
             marginBottom: 8
 
-          'Want to be notified about new blog posts?'
+          'Want to be notified about new posts?'
 
         INPUT 
           type: 'email'
@@ -1116,7 +1256,7 @@ dom.MAILING_LIST_SIGNUP = ->
           value: @local.email 
           style: 
             padding: '4px 12px'
-            width: '80%'
+            width: '70%'
           onChange: (e) =>
             @local.email = e.target.value 
             save @local
@@ -1134,6 +1274,21 @@ dom.MAILING_LIST_SIGNUP = ->
             if e.which in [32, 13]
               mailing_list_signup()
           'Sign up'
+
+        DIV 
+          style: 
+            textAlign: 'center'
+            color: '#777'
+
+          "...or follow along via "
+          A 
+            href: '/feed'
+            stay_away_Earl: true
+            style: {}
+              
+            'rss'
+          '.'
+
     else 
       DIV 
         style: 
@@ -1141,7 +1296,18 @@ dom.MAILING_LIST_SIGNUP = ->
           fontSize: 24
           color: considerit_salmon
           marginBottom: 8
-        'Thanks for signing up!'
+          textAlign: 'center'
+        'Follow along via '
+
+
+        A 
+          href: '/feed'
+          stay_away_Earl: true
+          style: {}
+            
+          'rss'
+        '.'
+
 
 
 
@@ -1157,8 +1323,7 @@ dom.PAGE_FOOTER = ->
 
 
 
-    LAB_FOOTER()
-    
+    LAB_FOOTER()    
 
 
 

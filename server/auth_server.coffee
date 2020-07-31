@@ -24,8 +24,8 @@ auth_server_funcs = module.exports = (master, client) ->
       console.log 'user not found', o, usr
       send_email 
         subject: "[#{process.env.APP_NAME}] password reset requested"
-        text: "Someone requested a reset code for #{o.email} at #{#{process.env.APP_NAME}}. But there is no user registered with that email. If you requested the reset, please create a new account instead, or try a different one of your email addresses. If you didn't, you can ignore this email."
-        html: "Someone requested a reset code for #{o.email} at #{#{process.env.APP_NAME}}. But there is no user registered with that email. If you requested the reset, please create a new account instead, or try a different one of your email addresses. If you didn't, you can ignore this email."
+        text: "Someone requested a reset code for #{o.email} at #{process.env.APP_NAME}. But there is no user registered with that email. If you requested the reset, please create a new account instead, or try a different one of your email addresses. If you didn't, you can ignore this email."
+        html: "Someone requested a reset code for #{o.email} at #{process.env.APP_NAME}. But there is no user registered with that email. If you requested the reset, please create a new account instead, or try a different one of your email addresses. If you didn't, you can ignore this email."
         recipient: o.email
 
     if usr 

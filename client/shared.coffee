@@ -410,6 +410,8 @@ dom.GROWING_TEXTAREA.refresh = ->
 dom.WYSIWYG = -> 
   my_data = fetch @props.obj
 
+  @local.edit_code ?= true
+
   DIV 
     style: 
       position: 'relative'
@@ -683,7 +685,7 @@ dom.LAB_FOOTER = ->
         textAlign: 'center'        
         marginBottom: 6
 
-      "Made by "
+      "Made at "
 
       A 
         onMouseEnter: => 
@@ -711,20 +713,20 @@ dom.LAB_FOOTER = ->
           transition: true
 
 
-    DIV 
-      style: 
-        fontSize: 16
-        textAlign: 'center'
+    # DIV 
+    #   style: 
+    #     fontSize: 16
+    #     textAlign: 'center'
 
-      "An "
-      A 
-        href: 'https://invisible.college'
-        target: '_blank'
-        style: 
-          color: 'inherit'
-          fontWeight: 400
-        "Invisible College"
-      " laboratory"
+    #   "An "
+    #   A 
+    #     href: 'https://invisible.college'
+    #     target: '_blank'
+    #     style: 
+    #       color: 'inherit'
+    #       fontWeight: 400
+    #     "Invisible College"
+    #   " laboratory"
 
 
 dom.LOADING_INDICATOR = -> 

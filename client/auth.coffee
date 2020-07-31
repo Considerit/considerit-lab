@@ -104,7 +104,10 @@ dom.AUTH = ->
               auth.form = null 
               save auth
 
-          'Nevermind, cancel'
+          if auth.form == "upload_avatar" && current_user.user && !fetch(current_user.user).pic
+            'Nope, I shall remain faceless'
+          else 
+            'Nevermind, cancel'
 
 
 ################

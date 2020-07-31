@@ -48,7 +48,7 @@ dom.BUBBLE_WRAP = ->
         padding: 8
         borderRadius: 16
         backgroundColor: considerit_gray
-        boxShadow: '#b5b5b5 0 1px 1px 0px'
+        boxShadow: '#777 0 1px 1px 0px' #'#b5b5b5 0 1px 1px 0px'
         boxSizing: 'border-box'
 
       DIV 

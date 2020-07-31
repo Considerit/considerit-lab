@@ -1,6 +1,10 @@
 local = false
 port = 8106
 
+require('dotenv').config 
+  path: 'confs/traviskriplean.env'
+
+
 global.upload_dir = 'static/uploads/'
 require('dotenv').config 
   path: 'confs/consideritus.env'
@@ -15,8 +19,8 @@ bus = require('statebus').serve({
     filename: 'db/blog'
     backup_dir: 'db/backups/blog'
   certs: if !local then {
-    private_key: 'certs/considerit-us/private-key'
-    certificate: 'certs/considerit-us/certificate'
+    private_key: 'certs/traviskriplean-com/private-key'
+    certificate: 'certs/traviskriplean-com/certificate'
   } 
 
   port: port
@@ -71,11 +75,10 @@ bus = require('statebus').serve({
 
 
     client('post/*').to_save = (obj) ->
-      bus.dirty "all_posts/#{obj.forum}"
+      # bus.dirty "all_posts/#{obj.forum}"
       if !obj.slug
         obj.slug = slugify(obj.title)
 
-      console.log 'SAVING', obj
       bus.save obj
 
       if obj.parent
@@ -104,8 +107,8 @@ bus = require('statebus').serve({
           parent.children.splice(i, 1)
           bus.save(parent)
 
-      if pst.forum
-        bus.dirty "all_posts/#{pst.forum}"
+      # if pst.forum
+      #   bus.dirty "all_posts/#{pst.forum}"
       bus.delete key
       t.done()
 
@@ -177,10 +180,92 @@ slugify = (text) ->
     .replace(/-+$/, '')             # Trim - from end of text
     .substring(0, 30)
 
+
+# Use CORS so I can access e.g. deslider.com:3666/fonts from deslider.com
+bus.http.use (req, res, next)  -> 
+  res.header('Access-Control-Allow-Origin', req.get('Origin') || '*')
+  res.header('Access-Control-Allow-Credentials', 'true')
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE')
+  res.header('Access-Control-Expose-Headers', 'Content-Length')
+  res.header('Access-Control-Allow-Headers', 'Accept, Authorization, Content-Type, X-Requested-With, Range')
+  if req.method == 'OPTIONS'
+    return res.send(200)
+  next()
+
+
 express = require('express')
 
 bus.http.use('/static', express.static('static'))
 bus.http.use('/node_modules', express.static('node_modules'))
+
+
+# Get an RSS pubDate from a Javascript Date instance
+pubDate = (date) -> 
+  pieces     = date.toString().split(' ')
+  offsetTime = pieces[5].match(/[-+]\d{4}/)
+  offset     = (offsetTime) ? offsetTime : pieces[5]
+  parts      = [
+        pieces[0] + ',',
+        pieces[2],
+        pieces[1],
+        pieces[3],
+        pieces[4],
+        offset
+  ]
+
+  parts.join(' ')
+
+bus.http.get '/feed', (r,res) => 
+  root = bus.fetch "post/blog_root"
+  posts = (bus.fetch(deslash(p)) for p in root.children)
+  published_posts = (p for p in posts when p.published)
+
+  items = ""
+
+  latest_date = null 
+
+  for post in published_posts
+    url = "https://traviskriplean.com/#{post.key.split('/')[1]}"
+
+    continue if !post.edits || post.edits.length < 1
+
+    earliest_edit = new Date(post.edits[0].time)
+    last_edit = new Date(post.edits[post.edits.length - 1].time)
+
+    latest_date ||= last_edit
+
+    items += """
+        <item>
+          <title>#{post.title}</title>
+          <link>#{url}</link>
+          <guid>#{url}</guid>
+          <pubDate>#{pubDate(last_edit)}</pubDate>
+        </item>
+      """
+
+    if last_edit > latest_date
+      latest_date = last_edit
+
+
+  html = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+        <channel>
+            <title>Travis Kriplean's Blog</title>
+            <link>http://www.flickr.com/photos/luxagraf/</link>
+            <description>Where I share my thoughts. The topics will likely touch upon dialogue, collaboration, listening, regeneration, ecological crises, parenting, open source, collectives, decentralized organization, and cultural evolution. I will also use this space to demonstrate new inventions.</description>
+            <pubDate>#{pubDate(latest_date)}</pubDate>
+            <lastBuildDate>#{pubDate(latest_date)}</lastBuildDate>
+            <atom:link href="https://traviskriplean.com/feed" rel="self" type="application/rss+xml" />
+            #{items}
+        </channel>
+    </rss>
+    """
+
+  res.set('Content-Type', 'application/rss+xml')
+  res.send(html)
+
+
 
 
 bus.http.get '/*', (r,res) => 
@@ -191,9 +276,11 @@ bus.http.get '/*', (r,res) =>
   if local
     prefix = ''
     server = "statei://localhost:#{port}"
+    static_prefix = "/static"
   else 
-    prefix = "https://considerit.us:#{port}"
-    server = "state://considerit.us:#{port}"
+    prefix = "https://traviskriplean.com:#{port}"
+    static_prefix = "https://ddbjipgwr13mk.cloudfront.net/static"
+    server = "state://traviskriplean.com:#{port}"
 
   html = """
     <!DOCTYPE html>
@@ -222,22 +309,22 @@ bus.http.get '/*', (r,res) =>
     <script src="#{prefix}/client/facepile.coffee"></script>
 
     <script src="#{prefix}/client/app_blog.coffee"></script>
-    <script src="#{prefix}/static/vendor/md5.js"></script>
-    <script src="#{prefix}/static/vendor/d3.quadtree.js"></script>
-    <script src="#{prefix}/static/vendor/cassowary.js"></script>
-    <script src="#{prefix}/static/vendor/linkify.min.js"></script>
-    <script src="#{prefix}/static/vendor/emoji.js"></script>
-    <script src="#{prefix}/static/vendor/emojione.js"></script>
+    <script src="#{static_prefix}/vendor/md5.js"></script>
+    <script src="#{static_prefix}/vendor/d3.quadtree.js"></script>
+    <script src="#{static_prefix}/vendor/cassowary.js"></script>
+    <script src="#{static_prefix}/vendor/linkify.min.js"></script>
+    <script src="#{static_prefix}/vendor/emoji.js"></script>
+    <script src="#{static_prefix}/vendor/emojione.js"></script>
 
-    <link href="#{prefix}/static/vendor/normalize.css" rel="stylesheet">
+    <link href="#{static_prefix}/vendor/normalize.css" rel="stylesheet">
 
-    <script src="#{prefix}/static/vendor/trix.js"></script>
-    <link href="#{prefix}/static/vendor/trix.css" rel="stylesheet">
+    <script src="#{static_prefix}/vendor/trix.js"></script>
+    <link href="#{static_prefix}/vendor/trix.css" rel="stylesheet">
 
 
     <!----
-    <script src="#{prefix}/static/vendor/quill.min.js"></script>
-    <link href="#{prefix}/static/vendor/quill.snow.css" rel="stylesheet">
+    <script src="#{static_prefix}/vendor/quill.min.js"></script>
+    <link href="#{static_prefix}/vendor/quill.snow.css" rel="stylesheet">
 
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css" rel="stylesheet">
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/adapterjs/0.14.1/adapter.min.js"></script>
@@ -249,28 +336,32 @@ bus.http.get '/*', (r,res) =>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
     <script src="#{prefix}/client/tawk.coffee"></script>
     <link href="https://fonts.googleapis.com/css?family=Raleway:300,400,400i,600|Trocchi" rel="stylesheet">
-    <link rel="stylesheet" href="#{prefix}/static/fonts/cool script/cool script.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/cool script/cool script.css"/>
 
     ----->
 
-    <link rel="stylesheet" href="#{prefix}/static/fonts/Brandon Grotesque/brandon.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/Brandon Grotesque/brandon.css"/>
+
     <link href="https://fonts.googleapis.com/css?family=Raleway:300,400,400i,500,700" rel="stylesheet">
 
 
     <!----
-    <link rel="stylesheet" href="#{prefix}/static/fonts/freight/freight.css"/>    
-    <link rel="stylesheet" href="#{prefix}/static/fonts/Brandon Grotesque/brandon-light.css"/>
-    <link rel="stylesheet" href="#{prefix}/static/fonts/cool script/cool script.css"/>
-    <link rel="stylesheet" href="#{prefix}/static/css" type="text/css"/>
-    <link rel="stylesheet" href="#{prefix}/static/fonts/computer modern/Upright Italic/cmun-upright-italic.css"/>
-    <link rel="stylesheet" href="#{prefix}/static/fonts/computer modern/Sans/cmun-sans.css"/>
-    <link rel="stylesheet" href="#{prefix}/static/fonts/computer modern/Serif/cmun-serif.css"/>
-    <link rel="stylesheet" href="#{prefix}/static/fonts/computer modern/Bright/cmun-bright.css"/>
-    <link rel="stylesheet" href="#{prefix}/static/fonts/computer modern/Sans Demi-Condensed/cmun-sans-demicondensed.css"/>
-    <link rel="stylesheet" href="#{prefix}/static/fonts/computer modern/Concrete/cmun-concrete.css"/>
-    <link rel="stylesheet" href="#{prefix}/static/fonts/computer modern/Typewriter/cmun-typewriter.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/freight/freight.css"/>    
+    <link rel="stylesheet" href="#{static_prefix}/fonts/Brandon Grotesque/brandon-light.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/cool script/cool script.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/css" type="text/css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/computer modern/Upright Italic/cmun-upright-italic.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/computer modern/Sans/cmun-sans.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/computer modern/Serif/cmun-serif.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/computer modern/Bright/cmun-bright.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/computer modern/Sans Demi-Condensed/cmun-sans-demicondensed.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/computer modern/Concrete/cmun-concrete.css"/>
+    <link rel="stylesheet" href="#{static_prefix}/fonts/computer modern/Typewriter/cmun-typewriter.css"/>
     <link href="https://fonts.googleapis.com/css?family=Montserrat" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css?family=Roboto+Condensed" rel="stylesheet">
+
+
+    ---->
 
     <script>
       (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
@@ -282,7 +373,11 @@ bus.http.get '/*', (r,res) =>
       ga('send', 'pageview');
 
     </script>
-    ---->
+
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/blog/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/blog/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/blog/favicon-16x16.png">
+    <link rel="manifest" href="/static/blog/site.webmanifest">
     
     </head>
     <body>

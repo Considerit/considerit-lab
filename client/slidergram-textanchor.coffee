@@ -119,15 +119,19 @@ dom.SLIDERGRAM_TEXT = ->
   @props.attr ||= 'body'
   @props.edit_permission ?= -> true 
 
+  slidergrams_disabled = @props.slidergrams_disabled
+
   local_obj = fetch shared_local_key obj
 
-  slidergrams = (obj.selections || [])
-  has_active_slidergram = slidergram_being_configured() && \
-     fetch(slidergram_being_configured().sel).post == obj.key
 
-  if has_active_slidergram
-    slidergrams = slidergrams.slice()
-    slidergrams.push slidergram_being_configured().sel
+  if !slidergrams_disabled 
+    slidergrams = (obj.selections || [])
+    has_active_slidergram = slidergram_being_configured() && \
+       fetch(slidergram_being_configured().sel).post == obj.key
+
+    if has_active_slidergram
+      slidergrams = slidergrams.slice()
+      slidergrams.push slidergram_being_configured().sel
 
   TEXT_WRAPPER = @props.wrapper or BUBBLE_WRAP
 
@@ -158,7 +162,7 @@ dom.SLIDERGRAM_TEXT = ->
         TEXT 
           ref: 'slidergram_text'
           html_WYSIWYG: @props.html_WYSIWYG
-          slidergrams: true 
+          slidergrams: !slidergrams_disabled 
           obj: obj 
           attr: @props.attr 
           edit_permission: @props.edit_permission
@@ -201,7 +205,7 @@ dom.SLIDERGRAM_TEXT = ->
               done_configuring_slidergram()
 
           onMouseDown: (e) => 
-            if !@local.editing && fetch('/current_user').logged_in
+            if !@local.editing && fetch('/current_user').logged_in && !slidergrams_disabled
               register_window_event obj, 'click', (e) => 
                 sel = window.getSelection()
                 # if there's a text selection, add a new selection w/ a new slider
@@ -225,18 +229,19 @@ dom.SLIDERGRAM_TEXT = ->
         top: @local.offset or 0
         position: 'relative'
       
-      for sel in slidergrams
+      if !slidergrams_disabled
+        for sel in slidergrams
 
-        SELECTION 
-          html_WYSIWYG: @props.html_WYSIWYG
-          key: sel.key or sel
-          sel: sel 
-          label: @props.slidergram_label or BASIC_SLIDER_LABEL
-          slidergram_width: @props.slidergram_width 
-          slidergram_height: @props.slidergram_height 
-          offset_for_new: @props.width
-          style: 
-            left: 15
+          SELECTION 
+            html_WYSIWYG: @props.html_WYSIWYG
+            key: sel.key or sel
+            sel: sel 
+            label: @props.slidergram_label or BASIC_SLIDER_LABEL
+            slidergram_width: @props.slidergram_width 
+            slidergram_height: @props.slidergram_height 
+            offset_for_new: @props.width
+            style: 
+              left: 15
 
 dom.SLIDERGRAM_TEXT.refresh = ->
 
