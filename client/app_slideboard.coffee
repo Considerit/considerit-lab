@@ -21,7 +21,7 @@ dom.BODY = ->
   DIV
     id: 'main-content' #used in sizewhenrendered
     style:
-      fontFamily: 'Avenir Next, Avenir, Calibri, Helvetica, sans-serif'
+      fontFamily: 'Open Sans, Avenir Next, Avenir, Calibri, Helvetica, sans-serif'
       fontSize: 16
       lineHeight: '22px'
 
@@ -2659,7 +2659,7 @@ dom.SLIDER_LABEL = ->
           backgroundColor: 'white'
           #width: 400
         if @local.engaged_last != 'menu' || !@local.selected_label?
-          "alt-e to insert emoji"
+          "alt-e for emoji"
 
     if @local.show_emoji
       DIV 
@@ -2739,7 +2739,7 @@ dom.SLIDER_LABEL = ->
                      else 
                        'transparent'
 
-      onKeyUp: (e) => 
+      onKeyPress: (e) => 
         key = e.which or e.keyCode
 
         if key == 13

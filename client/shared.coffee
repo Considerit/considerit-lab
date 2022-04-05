@@ -1,6 +1,14 @@
 window.considerit_salmon = '#F45F73' ##f35389' #'#df6264' #E16161
 
 
+
+window.set_style = (sty, id) ->
+  style = document.createElement "style"
+  style.id = id if id
+  style.innerHTML = sty
+  document.head.appendChild style
+
+
 # Tracking mouse positions
 # It is sometimes nice to know the mouse position. Let's just make it
 # globally available.
@@ -91,6 +99,9 @@ window.crossbrowserfy = (styles, property) ->
 
 window.get_script_attr = (script, attr) ->
   sc = document.querySelector("script[src*='#{script}'][src$='.coffee'], script[src*='#{script}'][src$='.js']")
+  if !sc 
+    return false 
+
   val = sc.getAttribute(attr)
 
   if val == ''
@@ -393,6 +404,7 @@ dom.GROWING_TEXTAREA = ->
 
   TEXTAREA @props
 
+
 dom.GROWING_TEXTAREA.refresh = -> 
   @adjustHeight()
 
@@ -410,51 +422,178 @@ dom.GROWING_TEXTAREA.refresh = ->
 dom.WYSIWYG = -> 
   my_data = fetch @props.obj
 
-  @local.edit_code ?= true
+  @local.mode ?= my_data.edit_mode or 'markdown'
+
+  if !@props.disable_html
+    modes = [{label: 'markdown', id: 'markdown'}, {label: 'raw html', id: 'html'}]
+  else 
+    modes = [{label: 'markdown', id: 'markdown'}] 
 
   DIV 
     style: 
       position: 'relative'
     onBlur: @props.onBlur
 
-    DIV 
-      style: 
-        position: 'absolute'
-        top: -28
-        left: 0
+    STYLE """
+          .editor-toolbar .fa {
+              color:  #444444;
+          }
+        """
 
-      for mode in [{label: 'rich text', val: false}, {label: 'raw html', val: true}]  
-        do (mode) =>
-          BUTTON
-            style: 
-              background: 'transparent'
-              border: 'none'
-              textTransform: 'uppercase'
-              color: if !!@local.edit_code == mode.val then '#555' else '#999'
-              padding: '0px 8px 0 0'
-              fontSize: 12
-              fontWeight: 700
-              cursor: if !!@local.edit_code == mode.val then 'auto'
+    if modes.length > 1 
+      DIV 
+        style: 
+          position: 'absolute'
+          top: -28
+          left: 0
 
-            onClick: (e) => 
-              @local.edit_code = mode.val
-              save @local
+        for mode in modes 
+          do (mode) =>
+            BUTTON
+              style: 
+                background: 'transparent'
+                border: 'none'
+                textTransform: 'uppercase'
+                color: if @local.mode == mode.id then '#555' else '#999'
+                padding: '0px 8px 0 0'
+                fontSize: 12
+                fontWeight: 700
+                cursor: if @local.mode == mode.id then 'auto'
 
-            mode.label
+              onClick: (e) => 
+                @local.mode = my_data.edit_mode = mode.id
+                save @local; save my_data
 
-    if @local.edit_code
+              mode.label
+
+    if @local.mode == 'html'
       AUTOSIZEBOX
         style: 
           width: '100%'
           fontSize: 'inherit'
-        value: my_data[@props.attr]
+        defaultValue: my_data[@props.attr] or '\n'
         autofocus: true
+        autoFocus: true
         onChange: (e) => 
           my_data[@props.attr] = e.target.value
           save my_data
-        
-    else 
-      TRIX_WYSIWYG @props
+
+    else if @local.mode == 'markdown'
+      EASYMARKDOWN @props
+    # else if @local.mode == 'html'
+    #   TRIX_WYSIWYG @props
+
+
+
+
+set_style """
+  [data-widget="UncontrolledText"] p:first-of-type {
+    margin-top: 0;
+  }
+
+"""
+
+dom.EASYMARKDOWN = ->
+  if !@local.initialized
+    # We store the current value of the HTML at
+    # this component's key. This allows the  
+    # parent component to fetch the value outside 
+    # of this generic wysiwyg component. 
+    # However, we "dangerously" set the html of the 
+    # editor to the original @props.html. This is 
+    # because we don't want to interfere with the 
+    # wysiwyg editor's ability to manage e.g. 
+    # the selection location. 
+    my_data = fetch @props.obj
+    @local.initialized = true
+    @local.id = "#{@local.key}-easymarkdown-editor"
+    save @local
+ 
+
+  DIV null, 
+    TEXTAREA extend {}, @props,
+      style: @props.style or {}
+      id: @local.id 
+
+dom.EASYMARKDOWN.refresh = -> 
+  if !@init 
+    @init = true
+    editor = document.getElementById @local.id
+    my_data = fetch @props.obj
+
+    @editor = new EasyMDE
+      element: editor
+      initialValue: my_data["#{@props.attr}_src"] or my_data.src or my_data[@props.attr] or '\n'
+      autofocus: !!@props.autofocus
+      insertTexts: 
+        image: ['<img style="aspect-ratio:#width/#height" width="100%" src="', '#url#" />\n']
+        uploadedImage: ['<img width="100%" src="#url#" /> \n', '']
+        uploadedMovie: ["""
+              <video width="100%" controls autoplay playsinline loop muted>\n \
+                <source src="#extentionless_url#.mp4" type="video/mp4">\n \
+               </video> \
+              """, '']
+      uploadImage: true 
+      imageUploadFunction: (f, onSuccess, onError) ->
+        return if f.type not in ["image/png", "image/jpeg", "video/quicktime", "video/mp4", "video/webm"]
+
+        subdirectory = my_data.key.split('/')
+        subdirectory = subdirectory[subdirectory.length - 1]
+
+        console.log 'Sending file', f.name
+        xhr = new XMLHttpRequest()
+        xhr.open 'POST', '/upload', true
+        xhr.setRequestHeader 'Content-Type', f.type
+        xhr.setRequestHeader 'Content-Disposition', "attachment; filename=\"#{f.name}\""
+        xhr.setRequestHeader 'Content-Filename', f.name
+        xhr.setRequestHeader 'Content-Directory', subdirectory
+
+        xhr.onreadystatechange = ->
+          if xhr.readyState == XMLHttpRequest.DONE
+            status = xhr.status
+            if status == 0 || (status >= 200 && status < 400)
+              img_url = "#{document.body.getAttribute('data-static-prefix')}/media/#{subdirectory}/#{f.name}"
+              console.log "DONE! #{f.name} #{img_url}", status
+
+              onSuccess(img_url)
+            else 
+              onError 'could not process file'
+
+        xhr.send f
+
+
+
+    actual_editor = editor.nextElementSibling.querySelector(".CodeMirror-code")
+ 
+    if @props.autofocus
+      @editor.codemirror.focus()
+      actual_editor?.focus()
+
+    @editor.codemirror.on "change", =>
+      my_data = fetch @props.obj
+
+      # for backwards compatibility
+      if my_data.src && !my_data["#{@props.attr}_src"]
+        my_data["#{@props.attr}_src"] = my_data.src
+        delete my_data.src
+        save my_data
+
+      my_data["#{@props.attr}_src"] = @editor.value()
+      my_data[@props.attr] = marked?.marked? my_data["#{@props.attr}_src"]
+
+      if !@dirty
+        @dirty = true
+        setTimeout =>
+          if @dirty
+            save my_data
+            @dirty = false 
+        , 1000
+
+    if @props.surrounding_text
+      cursor = @editor.codemirror.getSearchCursor @props.surrounding_text.trim()
+      cursor.findNext()
+      @editor.codemirror.setSelection cursor.pos.from, cursor.pos.to
+
 
 
 dom.TRIX_WYSIWYG = ->
@@ -470,7 +609,7 @@ dom.TRIX_WYSIWYG = ->
     # wysiwyg editor's ability to manage e.g. 
     # the selection location. 
     my_data = fetch @props.obj
-    @original_value = my_data[@props.attr] or ''
+    @original_value = my_data[@props.attr] or '\n'
     @local.initialized = true
     save @local
  
@@ -494,7 +633,7 @@ dom.TRIX_WYSIWYG.refresh = ->
       save my_data
 
     if @props.cursor
-      editor.editor.setSelectedRange @props.cursor
+      editor.editor.setSelectionRange @props.cursor, @props.cursor
 
 
 
@@ -672,7 +811,7 @@ dom.LAB_FOOTER = ->
     style: 
       marginTop: 40
       padding: '20px 0 20px 0'
-      fontFamily: '"Brandon Grotesque", Raleway, Helvetica, arial'
+      fontFamily: '"Brandon Grotesque", Montserrat, Helvetica, arial'
       borderTop: '1px solid #D6D7D9'
       backgroundColor: '#F6F7F9'
       color: "#777"
@@ -713,20 +852,20 @@ dom.LAB_FOOTER = ->
           transition: true
 
 
-    # DIV 
-    #   style: 
-    #     fontSize: 16
-    #     textAlign: 'center'
+    DIV 
+      style: 
+        fontSize: 16
+        textAlign: 'center'
 
-    #   "An "
-    #   A 
-    #     href: 'https://invisible.college'
-    #     target: '_blank'
-    #     style: 
-    #       color: 'inherit'
-    #       fontWeight: 400
-    #     "Invisible College"
-    #   " laboratory"
+      "An "
+      A 
+        href: 'https://invisible.college'
+        target: '_blank'
+        style: 
+          color: 'inherit'
+          fontWeight: 400
+        "Invisible College"
+      " laboratory"
 
 
 dom.LOADING_INDICATOR = -> 
@@ -741,11 +880,9 @@ dom.LOADING_INDICATOR = ->
     """
 
 
-window.set_style = (sty, id) ->
-  style = document.createElement "style"
-  style.id = id if id
-  style.innerHTML = sty
-  document.head.appendChild style
+window.point_distance = (a,b) ->
+  Math.sqrt( Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2) )
+
 
 
 

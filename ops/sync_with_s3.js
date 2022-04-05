@@ -48,5 +48,5 @@ var uploadDir = function(src, dest, is_gzipped) {
   })
 }
 
-// // sync static files
+// sync static files
 uploadDir( config.appDir + '/static', 'static')

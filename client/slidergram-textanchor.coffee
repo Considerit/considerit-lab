@@ -12,6 +12,7 @@ dom.TEXT = ->
     padding: 0
     margin: 0
     lineHeight: 'inherit'
+    minHeight: 14
     border: 'none'
     outline: 'none'   
     display: 'inline-block'
@@ -24,6 +25,7 @@ dom.TEXT = ->
                   # selections to within the element. 
                   # http://stackoverflow.com/questions/14017818
 
+
   DIV 
     onBlur: if @local.editing then (e) =>
 
@@ -35,21 +37,22 @@ dom.TEXT = ->
 
         @local.editing = false
         save @local
-        @props.onToggleEditMode(@local.editing)
+        @props.onToggleEditMode?(@local.editing)
         @props.onBlur?(e) 
            
 
     if @local.editing && @props.edit_permission()
-
       if @props.html_WYSIWYG
 
         WYSIWYG
           obj: @props.obj
           attr: @props.attr
-          placeholder: 'blah'
+          placeholder: @props.placeholder or ''
           style: {}
           cursor: @local.editing_position
+          surrounding_text: @local.surrounding_text
           autofocus: @props.autofocus
+          disable_html: @props.disable_html
 
       else
 
@@ -86,31 +89,457 @@ dom.TEXT = ->
           @props.onDoubleClick?(e, @local.editing)
 
           @local.editing = true
-          @props.onToggleEditMode(@local.editing)
+          @props.onToggleEditMode?(@local.editing)
 
           pos = get_selected_text @refs.text_field.getDOMNode()
           @local.editing_position = pos?.start or 0
 
+
+          sel = window.getSelection()
+          @local.surrounding_text = sel.anchorNode.textContent
           save @local 
-
-          #TODO: get cursor loc and get editors to seek there
-
 
       DIV null, 
         STYLE """ 
-           .text_field:empty:before {
-              content: attr(placeholder);
-              display: block;
-              color: #999;
-              pointer-events: none;
-            } """
+          .text_field:empty:before {
+            content: attr(placeholder);
+            display: block;
+            color: #999;
+            pointer-events: none;
+          }
+
+          .image-grid {
+            //width: 70vw;
+            width: 100%;
+            position: relative;
+
+            // padding: 12px 24px;
+            // background-color: #f6f7f9;
+            margin: 36px 0;
+            // border-radius: 32px;
+            // border: 1px solid #ddd;
+            // box-shadow: 0 1px 2px rgba(0,0,0,.25);            
+          }
+          .image-grid ul {
+            display: flex;
+            flex-wrap: wrap;
+            list-style: none;
+            padding-left: 0px;
+          }
+          .image-grid ul li {
+            // height: 300px;
+            // height: 150px;
+            flex-grow: 1;
+            margin-bottom: 0px;
+          } 
+          .image-grid img, .image-grid video {
+            max-height: 100%;
+            min-width: 100%;
+
+            object-fit: cover;
+            vertical-align: bottom;
+            border: 1px solid #f6f7f9;
+          }
+          .image-grid li:last-child {
+            flex-grow: 10;
+          }
+
+          .modal_eligible:hover {
+            opacity: .85;   
+            cursor: pointer;         
+          }
+          """
 
 
-      if @props.html_WYSIWYG
-        props.dangerouslySetInnerHTML = __html: txt
-        DIV props
+        if @props.html_WYSIWYG
+          props.dangerouslySetInnerHTML = {__html: txt}   
+          props.key = txt     
+          UncontrolledText props 
+        else 
+          props.txt = markup_text(txt) 
+          UncontrolledText props 
+
+dom.UncontrolledText = ->
+  if @props.dangerouslySetInnerHTML
+    DIV @props
+  else
+    DIV @props, @props.txt
+
+dom.UncontrolledText.shouldComponentUpdate = -> 
+  false
+
+
+mute_all = -> 
+  media = document.querySelectorAll("video, audio")
+  for m in media 
+    m.muted = true
+
+
+dom.UncontrolledText.refresh = ->
+
+
+  configure_modal_media = (media) ->
+
+    open_modal = (e) ->
+      modal_state = fetch 'image_modal'
+      modal_state.img_or_video = e.target.outerHTML
+      modal_state.all = (m.outerHTML for m in media)
+      mute_all()
+      save modal_state
+
+    for m in media 
+      m.classList.add 'modal_eligible'
+
+      if m.hasAttribute "controls"
+        m.removeAttribute "controls"
+
+      m.onclick = open_modal 
+      m.onkeydown = (e) ->
+        if e.which == 13 || e.which == 32 # ENTER or SPACE
+          open_modal e 
+          e.preventDefault()
+
+  grids = @getDOMNode().querySelectorAll('.image-grid')
+
+  for grid in grids
+    images = grid.childNodes
+    caption = null
+
+    height = grid.style.height or "175px"
+
+    new_html = """<ul>"""
+    for img in images when img.outerHTML
+      if img.tagName.toLowerCase() == 'figcaption'
+        caption = img
       else 
-        DIV props, markup_text(txt)
+        if height 
+          img.setAttribute 'height', height 
+
+        if img.getAttribute 'width'
+          img.removeAttribute 'width'
+        new_html += "<li>#{img.outerHTML}</li>"
+
+    if !grid.classList.contains('single')
+      new_html += "<li></li>"
+
+    new_html += "</ul>"
+
+    if caption
+      new_html += caption.outerHTML
+    #grid.style.left = "#{-getCoords(@getDOMNode()).left}px"
+    grid.innerHTML = new_html
+    if grid.style.height 
+      grid.style.height = null
+
+
+    configure_modal_media grid.querySelectorAll('img,video') 
+
+
+  figures = @getDOMNode().getElementsByTagName('figure')
+  for fig in figures
+    configure_modal_media fig.querySelectorAll('img,video') 
+
+
+  for link in @getDOMNode().getElementsByTagName('a')
+    if !link.getAttribute('target') && link.getAttribute('href')?[0] != '#'
+      link.setAttribute('target', '_blank')
+
+
+
+  # only play videos when they're in the viewport
+  videos = @getDOMNode().querySelectorAll('video:not([data-initialized])')
+
+  for video in videos
+    do (video) =>
+
+      video.setAttribute 'data-initialized', "" 
+      if video.hasAttribute 'autoplay'
+        video.setAttribute 'playsinline', ""   
+
+      video.addEventListener "loadstart", (e) ->
+        video.classList.add 'loading'
+        if video.hasAttribute 'controls'
+          video.setAttribute 'data-controls', ""
+        if !video.hasAttribute('poster')
+          video.setAttribute 'controls', ""
+
+      video.addEventListener 'loadeddata', (e) ->
+        if video.readyState >= 1
+          video.classList.remove 'loading'
+          if !video.hasAttribute 'data-controls'
+            video.removeAttribute 'controls'
+          eligible_to_play = null
+          observer = new IntersectionObserver (entries) ->
+            entries.forEach (entry) ->
+              if !entry.isIntersecting
+                eligible_to_play = false
+                pause_video()
+              else if video.hasAttribute 'autoplay'
+                eligible_to_play = true
+                play_video()
+          , {}
+
+          play_video = ->
+            video.play()
+          pause_video = ->
+            video.pause()
+
+
+          observer.observe video
+
+          onVisibilityChange = ->
+            if document.hidden || !eligible_to_play
+              pause_video()
+            else if video.hasAttribute 'autoplay'
+              play_video()
+
+          document.addEventListener 'visibilitychange', onVisibilityChange
+
+  if @props.edit_permission() && !@checked_aspects
+    @checked_aspects = true 
+
+    console.log "delaying by 5sec"
+    setTimeout =>
+      return if !@isMounted()
+
+      # try to fill in missing aspect-ratios for imgs and videos
+      media = @getDOMNode().querySelectorAll('img,video')
+      media = (m for m in media when !m.style.aspectRatio && !m.getAttribute('style'))
+
+      if media.length > 0
+        console.log "Media that needs aspect ratio", media 
+        ensure_loaded = setInterval =>
+          media_loaded = true
+          for m in media 
+            media_loaded &&= (m.complete or m.readyState == 4) && (m.naturalWidth or m.videoWidth)
+          if media_loaded
+            all_loaded()
+            clearInterval ensure_loaded
+          else 
+            console.log "Media still loading"
+        , 1000
+
+
+        all_loaded = =>
+          console.log "All media is loaded, checking if we can insert aspect ratios"
+          made_changes = false 
+          post = @props.obj
+
+          for m in (media or [])
+            aspect = m.style.aspectRatio
+            sty = " style=\"aspect-ratio: #{m.naturalWidth or m.videoWidth} / #{m.naturalHeight or m.videoHeight}\" "
+
+            for field in ['body', 'src'] when field of post 
+              idx = post[field].indexOf(m.getAttribute('src'))
+
+              if idx > -1
+                idx += m.getAttribute('src').length + 1
+                console.log "inserting", m, sty, idx, post[field][idx-1], post[field][idx], post[field][idx+1]
+                post[field] = "#{post[field].slice(0, idx)}#{sty}#{post[field].slice(idx)}"
+                made_changes = true 
+              else 
+                console.log "Could not find place to insert aspect ratio for ", m, field
+          if made_changes
+            save post
+    , 5000
+
+
+
+
+dom.IMAGE_MODAL = -> 
+  modal_state = fetch 'image_modal'
+
+  return SPAN null if !modal_state.img_or_video
+
+  needs_navigation = modal_state.all?.length > 1
+
+  if needs_navigation
+    for sib,idx in modal_state.all
+      if sib == modal_state.img_or_video
+        current_idx = idx
+        break 
+
+  close_modal = ->
+    modal_state.img_or_video = null 
+    save modal_state
+    mute_all()
+
+  prev_sibling = ->
+    modal_state.img_or_video = modal_state.all[current_idx - 1]
+    save modal_state
+
+  next_sibling = ->
+    modal_state.img_or_video = modal_state.all[current_idx + 1]
+    save modal_state
+
+  DIV 
+    id: 'IMAGE_MODAL'
+
+    BUTTON 
+      className: 'close'
+      dangerouslySetInnerHTML: __html: "&times;"
+      onClick: close_modal
+      onKeyDown: (e) -> 
+        if e.which == 13 || e.which == 32 # ENTER or SPACE
+          close_modal()
+          e.preventDefault()
+
+    DIV 
+      key: modal_state.open
+      ref: 'media'
+      dangerouslySetInnerHTML: __html: modal_state.img_or_video.replace('playsinline', '').replace('-small', '').replace('data-autoplay', 'autoplay').replace('muted', '').replace('modal_eligible', '').replace('height:', 'heightb:')
+
+
+    if current_idx > 0
+      BUTTON 
+        className: 'prev'
+        dangerouslySetInnerHTML: __html: "<span>&#8249;</span>"
+        onClick: prev_sibling
+        onKeyDown: (e) -> 
+          if e.which == 13 || e.which == 32 # ENTER or SPACE
+            prev_sibling()
+            e.preventDefault()
+
+    if needs_navigation && current_idx < modal_state.all.length - 1
+      BUTTON 
+        className: 'next'
+        dangerouslySetInnerHTML: __html: "<span>&#8250;</span>"
+        onClick: next_sibling
+        onKeyDown: (e) -> 
+          if e.which == 13 || e.which == 32 # ENTER or SPACE
+            next_sibling()
+            e.preventDefault()
+
+
+
+    STYLE """
+      #IMAGE_MODAL {
+        position: fixed;
+        z-index: 1;
+        padding-top: 5vh;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.9);
+      }
+
+      #IMAGE_MODAL img, #IMAGE_MODAL video {
+        margin: auto;
+        display: block;
+        width: auto;
+        height: 90vh;
+      }
+
+      #IMAGE_MODAL .caption {
+        margin: auto;
+        display: block;
+        width: auto;
+        max-height: 70vh;
+        text-align: center;
+        color: #ccc;
+        padding: 10px 0;
+        height: 150px;
+      }
+
+    /* The Close Button */
+    #IMAGE_MODAL .close {
+      position: absolute;
+      top: 15px;
+      right: 35px;
+      color: #f1f1f1;
+      font-size: 40px;
+      font-weight: bold;
+      transition: 0.3s;
+      background-color: transparent;
+    }
+
+    #IMAGE_MODAL .close:hover,
+    #IMAGE_MODAL .close:focus {
+      cursor: pointer;
+    }
+
+    #IMAGE_MODAL .prev, #IMAGE_MODAL .next {
+      position: absolute;
+      top: 50%;
+      margin-top: -60px;
+      font-size: 56px;
+      background-color: #444;
+      font-weight: 400;
+      border-radius: 50%;
+      width: 55px;
+      height: 55px;
+    }
+    #IMAGE_MODAL .prev span, #IMAGE_MODAL .next span {
+      position: relative;
+      top: -20px;
+    }
+
+    #IMAGE_MODAL .next {
+      right: 50px;
+    }
+    #IMAGE_MODAL .prev {
+      left: 50px;
+    }
+
+
+
+
+    """
+
+dom.IMAGE_MODAL.refresh = ->
+  modal_state = fetch 'image_modal'
+  return if !modal_state.img_or_video
+
+  m = @refs.media.getDOMNode().childNodes[0]
+  if m.tagName == 'VIDEO'
+    m.setAttribute "controls", true
+
+  close_modal = ->
+    modal_state.img_or_video = null 
+    save modal_state
+    mute_all()
+
+  get_idx = -> 
+    current_idx = 0 
+    for sib,idx in modal_state.all
+      if sib == modal_state.img_or_video
+        current_idx = idx
+        break 
+    current_idx
+
+  prev_sibling = ->
+    current_idx = get_idx()
+    if current_idx > 0
+      modal_state.img_or_video = modal_state.all[get_idx() - 1]
+      save modal_state
+
+  next_sibling = ->
+    current_idx = get_idx()
+    if current_idx < modal_state.all.length - 1
+      modal_state.img_or_video = modal_state.all[get_idx() + 1]
+      save modal_state
+
+  @getDOMNode().onclick = (e) ->
+    if e.target.tagName.toLowerCase() not in ['img', 'video'] && e.target.className not in ['prev', 'next']
+      close_modal()
+
+  document.body.onkeydown = (e) ->
+    if modal_state.img_or_video
+      if e.key == 'Escape' || e.keyCode == 27
+        close_modal()
+      else if e.keyCode == 39
+        next_sibling()
+      else if e.keyCode == 37 
+        prev_sibling()
+
+      if e.keyCode >= 37 && e.keyCode <= 40
+        e.preventDefault()
+        e.stopPropagation()
+
+
+
 
 
 dom.SLIDERGRAM_TEXT = -> 
@@ -245,11 +674,12 @@ dom.SLIDERGRAM_TEXT = ->
 
 dom.SLIDERGRAM_TEXT.refresh = ->
 
-  offset = @refs.slidergram_text.getDOMNode().getBoundingClientRect().top - @getDOMNode().getBoundingClientRect().top
+  if !@props.slidergrams_disabled
+    offset = @refs.slidergram_text.getDOMNode().getBoundingClientRect().top - @getDOMNode().getBoundingClientRect().top
 
-  if @local.offset != offset
-    @local.offset = offset
-    save @local
+    if @local.offset != offset
+      @local.offset = offset
+      save @local
 
   if !@local.editing  
     obj = fetch @props.obj 
@@ -981,7 +1411,12 @@ cache = (obj_or_key) ->
 markup_text = (text) ->
   text ||= ''
 
-  for p in text.split('\n')
+  paragraphs = text.split('\n')  
+
+  return "<span>#{paragraphs[0]}</span>" if paragraphs.length == 1
+
+
+  for p in paragraphs
     # replace a leading space with a non-breaking space
     if p[0] == ' '
       p = "\u00A0#{p.substring(1, p.length)}"

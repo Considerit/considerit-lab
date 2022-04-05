@@ -2,11 +2,16 @@
 #     passwordgen
 #     bcrypt-nodejs
 
+
+try 
+  crypto = require('crypto')
+catch e 
+  console.error "Could not load Crypto module for hashing"
+
 auth_server_funcs = module.exports = (master, client) ->
   console.assert client
 
   client('initiate_reset_pass').to_save = (o, t) ->
-
     return t.abort(o) if !o.who? && !o.email?
 
     usr = null 
@@ -82,3 +87,12 @@ auth_server_funcs = module.exports = (master, client) ->
     
     client.save.fire(o)
     t.done(o)
+
+
+  client('gravatars').to_fetch = (__) ->
+    return {error: 'crypto module not loaded'} if !crypto 
+    gravatars = {}
+    for user in master.cache['users'].all
+      if user.email
+        gravatars["/#{user.key}"] = "https://www.gravatar.com/avatar/#{crypto.createHash('md5').update(user.email).digest('hex')}?s=200" 
+    {gravatars} 

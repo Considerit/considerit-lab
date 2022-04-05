@@ -195,7 +195,7 @@ bus('recent/*').to_fetch = (k, json) ->
       slides = slides.concat(p.slides)
     slides.sort (a,b) -> b.updated - a.updated
 
-    last_activity = Math.max((slides[0]?.updated or 0), \
+    last_activity = Math.max((slides?[0]?.updated or 0), \
                               posts[posts.length - 1].edits[0].time)
 
     seen_all_listens = true 
@@ -220,19 +220,19 @@ bus('recent/*').to_fetch = (k, json) ->
 
     slides = get_ordered_slides(pst)
 
-    last_activity = Math.max((slides[0]?.updated or 0), \
-                              pst.edits[0].time)
+    last_activity = Math.max((slides?[0]?.updated or 0), \
+                              pst.edits?[0].time or 0)
 
     seen_all_listens = true
     for slide in slides 
-      ts = (slide.updated or pst.edits[0].time + 1000)
+      ts = ((slide.updated or pst.edits?[0].time or 0) + 1000)
       if !has_seen(pst, ts) && !has_seen(slide.slider, ts)
         unseen['/' + slide.slider] = ts
         seen_all_listens = false 
     {
       post: '/' + pst.key
       last_activity
-      seen: has_seen(pst, pst.edits[0].time)
+      seen: has_seen(pst, pst.edits?[0]?.time or 0)
       seen_all_listens
       slides
     }
@@ -360,6 +360,9 @@ bus.http.get '/*', (r,res) =>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui-touch-punch/0.2.3/jquery.ui.touch-punch.min.js"></script>
       <script src="https://tawk.space/node_modules/hark/hark.bundle.js"></script>      
       <script src="#{prefix}/client/tawk.coffee"></script>
+
+      <link rel="preconnect" href="https://fonts.gstatic.com">
+      <link href="https://fonts.googleapis.com/css2?family=family=Fira+Sans+Condensed:wght@200;400;700;800;900&family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;1,300;1,400;1,600;1,700;1,800&display=swap" rel="stylesheet">
 
       <script>
         document.title = "#{channel}"

@@ -20,7 +20,7 @@ fickle.register (upstream_vars) ->
 
 set_style """
   [data-widget="BODY"]  {
-    font-family: 'Raleway', Georgia,Cambria,"Times New Roman",Times,serif; // Helvetica Neue, Segoe UI, Helvetica, Arial, sans-serif; 
+    font-family: 'Montserrat', Georgia,Cambria,"Times New Roman",Times,serif; // Helvetica Neue, Segoe UI, Helvetica, Arial, sans-serif; 
     font-size: 16px;
     color: black;
     line-height: 1.4;
@@ -32,7 +32,7 @@ set_style """
   } [data-widget="BODY"] h1, [data-widget="BODY"] h2, [data-widget="BODY"] h3 {
     //font-family: 'Trocchi', 'Roboto Condensed', 'Helvetica', arial;
     
-    font-family: 'Brandon Grotesque', 'Raleway', Helvetica, arial;
+    font-family: 'Brandon Grotesque', 'Montserrat', Helvetica, arial;
     font-weight: 400;
     //letter-spacing: 1px;
   } [data-widget="BODY"] h1 {

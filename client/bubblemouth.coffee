@@ -136,7 +136,7 @@ Bubblemouth = (props) ->
       # clip path. So we'll apply it to a copy. 
       PATH
         key: 'shadow'
-        fill: props.fill
+        fill: props.box_shadow.fill or props.fill
         style: 
           filter: "url(##{id}-shadow)"
         d: bubblemouth_path

@@ -225,7 +225,7 @@ guess_cursor_location = (c) ->
 # Save connection when dirty
 # Rate limiting helps performance
 
-if !get_script_attr('presence', 'no-updates')
+if !window.presence_no_updates && !get_script_attr('presence', 'no-updates')
   connection_is_dirty = false 
   setInterval -> 
     if bus? && connection_is_dirty
@@ -406,8 +406,9 @@ wait_for_bus ->
 ################################
 # Track cursor
 
-onMouseUpdate = (e) -> update_position e, e.pageX, e.pageY
-onTouchUpdate = (e) -> update_position e, e.touches[0].pageX, e.touches[0].pageY
+if !window.presence_no_updates && !get_script_attr('presence', 'no-updates')
+  onMouseUpdate = (e) -> update_position e, e.pageX, e.pageY
+  onTouchUpdate = (e) -> update_position e, e.touches[0].pageX, e.touches[0].pageY
 
 matching_attr_whitelist = ['id', 'data-widget', 'data-key', 'class', 'href', 'src']
 matching_attr_blacklist = ['data-reactid', 'style', 'disabled']

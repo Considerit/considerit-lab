@@ -12,6 +12,9 @@ try
       subject: subject
       text: text
       html: html or text
+    , (error, body) -> 
+      console.log "ERROR SENDING MAIL!", error, body
+
 catch e 
   global.send_email = -> 
     console.error 'could not send message beecause mailgun failed to load'

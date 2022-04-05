@@ -2,6 +2,51 @@
 # Data methods
 #####################
 
+
+#       root
+#      /  |  \
+#     /   v   \
+#    /  ideas  \
+#   /  .  |  .  \
+#  / .    |    . \
+# i1      |      i2
+# |       v       |
+# |     pros      |
+# |   .      .    |
+# | .           . |
+# p1             p2
+
+# This diagram illustrates three relationships that points can have to each other:
+
+# (1) Parent / child. Each pro point (p1 and p2) is a child of each idea i1 and i2 respectively. And each idea is a child of root.
+
+# (2) Type. i1 and i2 inherit type information from ideas. p1 and p2 inherit type information from pros. 
+
+# (3) Suggests. The root point suggests children of type "ideas". "ideas" suggests children of type "pros".
+
+# Structural data on a point reflects these three relationships: 
+
+#   - parent / children
+#   - type / type_children
+#   - suggested_by / suggests
+
+# A given point is unlikely to have all of these fields set on it.
+
+# The programmer can decide to resolve a property up the type chain (e.g. "category" and "slider labels") or up the parent chain (e.g. "access control" and "user survey questions"). Or not look up the chain at all. 
+
+# I made two methods that effectively implement prototype inheritance for getting the value of a property: 
+
+#     resolve ( pnt, prop )            <====== looks up parent chain
+#     resolve_type ( pnt, prop )  <====== looks up type chain
+
+# The implementation felt more true. It is 400 lines shorter (50%). It's complexity could be reduced if we didn't care about cleanly deleting a point.
+
+# Access the code at http://considerit.us/v2.html
+
+# An updated data visualizer for this new structure is http://considerit.us/list_inspector_v2.html
+
+
+
 ####
 # organize_children_by_type
 #   - Sort children into lists

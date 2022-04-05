@@ -174,6 +174,7 @@ dom.POINT = ->
           sldr: slider
           width: fickle.slidergram_width
           height: fickle.slidergram_height
+          one_sided: true
 
     # children
     LIST 

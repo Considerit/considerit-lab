@@ -1,5 +1,5 @@
 
-default_path = get_script_attr('avatar', 'default-path')
+window.pics_path = default_path = window.avatar_default_path or get_script_attr('avatar', 'default-path')
 
 
 dom.AVATAR = -> 
@@ -26,13 +26,16 @@ dom.AVATAR = ->
   if @props.hide_tooltip && !user.key == your_key()
     @props.title = name
 
-  if user.pic 
-    @props.src ||= user.pic
-
-    if @props.src.indexOf('/') == -1 && default_path
-      @props.src = "#{default_path}/#{@props.src}"
-
+  if user.pic || window.try_gravatar
+    src = @props.src or user.pic
+    if src
+      if src.indexOf('/') == -1 && default_path
+        src = "#{default_path}/#{src}"
+    else 
+      src = fetch('/gravatars').gravatars[user.key] + "&d=#{window.try_gravatar}"
+    @props.src = src 
     IMG @props
+    
   else
 
     if add_initials
@@ -48,10 +51,31 @@ dom.AVATAR = ->
       if add_initials
         SPAN 
           key: 'initials'
+          className: 'initials'
           style: 
             fontSize: (@props.style?.width or 50) / 2
             padding: (@props.style?.width or 50) / 4
           name
+
+      if @props.prompt_avatar && fetch('/current_user').user?.key == user.key
+        DIV 
+          style: 
+            position: 'absolute'
+            left: 0 
+            bottom: -30
+
+          BUTTON
+            style: 
+              textDecoration: 'underline'
+              color: considerit_salmon
+              fontSize: 13
+              backgroundColor: 'transparent'
+            onClick: => 
+              auth = fetch 'auth'
+              auth.form = 'upload_avatar' 
+              save auth
+            'set your pic'
+
 
 style = document.createElement "style"
 style.id = "avatar-styles"
@@ -63,7 +87,7 @@ style.innerHTML =   """
     background-color: #62B39D;
     text-align: center;
     display: inline-block;
-  } span[data-widget='AVATAR'] span {
+  } span[data-widget='AVATAR'] .initials {
     color: white;
     pointer-events: none;
     display: block;
@@ -92,7 +116,7 @@ document.addEventListener "mouseover", (e) ->
     create_tooltip name, e.target, 
       backgroundColor: color
       color: 'white'
-      fontSize: 9
+      fontSize: 12
       padding: '2px 4px'
       maxWidth: 200
       whiteSpace: 'nowrap'
@@ -101,4 +125,13 @@ document.addEventListener "mouseout", (e) ->
   return if !clear_tooltip?
   if e.target.getAttribute?('data-user') && e.target.getAttribute('data-showtooltip') == 'true'
     clear_tooltip()
+
+
+
+###########
+# Replace broken avatar files
+document.addEventListener 'error', (e) ->
+  return if e.target.tagName.toLowerCase() != 'img' || e.target.getAttribute('data-widget') != 'AVATAR'
+  e.target.src = 'https://www.gravatar.com/avatar/?d=identicon';
+, true
 

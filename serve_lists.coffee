@@ -112,7 +112,22 @@ bus.http.get '/*', (r,res) =>
   html = """
     <script type="coffeedom">
     bus.honk = false
-    #</script><script src="#{prefix}/node_modules/statebus/client.js" server="#{server}"></script>
+    #</script>
+
+
+    <script type="application/javascript">
+      window.statebus_server="#{server}";
+      window.presence_no_updates=true;
+      window.history_aware_links=true;
+    </script>
+
+
+    <script src="#{prefix}/node_modules/statebus/extras/react.js"></script>
+    <script src="#{prefix}/node_modules/statebus/extras/sockjs.js"></script>
+    <script src="#{prefix}/node_modules/statebus/extras/coffee.js"></script>
+    <script src="#{prefix}/node_modules/statebus/statebus.js"></script>
+    <script src="#{prefix}/node_modules/statebus/client.js"></script>
+
     <script src="#{prefix}/client/fickle.coffee"></script>
     <script src="#{prefix}/client/shared.coffee"></script>
     <script src="#{prefix}/client/avatar.coffee" default-path="#{prefix}/static/uploads"></script>

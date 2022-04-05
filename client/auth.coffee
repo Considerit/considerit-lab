@@ -55,59 +55,75 @@ dom.AUTH = ->
 
   return SPAN null if !auth.form
 
+
+
   DIV   
     style: defaults {}, (@props.style or {}),
       backgroundColor: if considerit_salmon? then considerit_salmon else '#E16161'
       padding: 20
 
+
     DIV 
-      style: 
-        maxWidth: 560
-        margin: 'auto'
-        
+      id: 'lightbox'
 
-      switch auth.form 
-        when "register", "login"
-          LOGIN_or_REGISTER
-            login_field: @props.login_field
-            additional_questions: @props.additional_questions
-        when "edit_profile"
-          EDIT_PROFILE
-            additional_questions: @props.additional_questions
-        when "upload_avatar"
-          SET_AVATAR()
-        when "reset_password"
-          RESET_PASSWORD
-            login_field: @props.login_field
-
-
+    DIV
+      id: 'modal'
+      ref: 'dialog'
+      role: 'dialog'
 
       DIV 
         style: 
-          marginTop: 24
-          textAlign: 'center'
+          maxWidth: 560
+          margin: 'auto'
+          
 
-        BUTTON 
+        switch auth.form 
+          when "register", "login"
+            LOGIN_or_REGISTER
+              login_field: @props.login_field
+              additional_questions: @props.additional_questions
+          when "edit_profile"
+            EDIT_PROFILE
+              additional_questions: @props.additional_questions
+          when "upload_avatar"
+            SET_AVATAR()
+          when "reset_password"
+            RESET_PASSWORD
+              login_field: @props.login_field
+
+
+
+        DIV 
           style: 
-            backgroundColor: 'transparent'
-            border: 'none'
-            #textDecoration: 'underline'
-            cursor: 'pointer'
-            opacity: .7
-            color: 'white'
+            marginTop: 24
+            textAlign: 'center'
 
-          onClick: => 
-            auth.form = null 
-            save auth
-          onKeyPress: (e) -> 
-            if e.which == 32 || e.which == 13
+          BUTTON 
+            style: 
+              backgroundColor: 'transparent'
+              border: 'none'
+              #textDecoration: 'underline'
+              cursor: 'pointer'
+              opacity: .7
+              color: 'white'
+
+            onClick: => 
               auth.form = null 
               save auth
+            onKeyPress: (e) -> 
+              if e.which == 32 || e.which == 13
+                auth.form = null 
+                save auth
 
-          if auth.form == "upload_avatar" && current_user.user && !fetch(current_user.user).pic
-            'Nope, I shall remain faceless'
-          else 
-            'Nevermind, cancel'
+            if auth.form == "upload_avatar" && current_user.user && !fetch(current_user.user).pic
+              'Nope, I shall remain faceless'
+            else 
+              'Nevermind, cancel'
+
+if makeModal?
+  makeModal dom.AUTH
+
+
 
 
 ################
@@ -175,7 +191,7 @@ dom.LOGIN_or_REGISTER = ->
       flash = setTimeout => 
         delete current_user.error 
         save current_user
-      , 5000
+      , 10000
 
       DIV 
         style: 
@@ -190,8 +206,8 @@ dom.LOGIN_or_REGISTER = ->
     reset_password = @local.reset_password
     enabled = ((@props.login_field == 'email' && @local.credentials.email) || (@props.login_field == 'name' && @local.credentials.name) ) && (@local.credentials.password || reset_password)
 
-
     submit_login = => 
+
       if enabled 
         if reset_password
           auth.form = 'reset_password'
@@ -304,8 +320,15 @@ dom.LOGIN_or_REGISTER = ->
           @props.additional_questions?.public?(current_user.public)
         save current_user
 
-        auth.form = 'upload_avatar' 
-        save auth
+
+        wait_for_login = setInterval ->
+          if current_user.logged_in
+            auth.form = 'upload_avatar' 
+            save auth
+            clearInterval wait_for_login
+          else if current_user.error
+            clearInterval wait_for_login
+        , 100
 
     DIV null, 
     
@@ -362,6 +385,167 @@ dom.LOGIN_or_REGISTER = ->
     login()
   else 
     register()
+
+
+
+dom.INLINE_LOGIN = ->
+  current_user = fetch '/current_user'
+  auth = fetch 'auth'
+
+  credentials = fetch 'credentials'
+
+  if !credentials.init?
+    credentials.init = true 
+    credentials.name = fetch('/connection').name
+
+  toggle_form = -> 
+    auth.form = 'login'
+    save auth
+
+  name_field = DIV style: field_style,
+
+    INPUT
+      ref: 'name'
+      type: 'text'
+      style: input_style
+      value: credentials.name
+      placeholder: "Your name"
+      onChange: (e) =>
+        credentials.name = e.target.value
+        save credentials
+
+  email_field = DIV style: field_style,
+
+    INPUT
+      ref: 'email'
+      type: 'email'
+      style: input_style
+      value: credentials.email
+      placeholder: "Your email"
+      onChange: (e) =>
+        credentials.email = e.target.value
+        save credentials
+
+  password_field = DIV style: field_style,
+
+    INPUT
+      ref: 'password'
+      type: 'password'
+      style: input_style
+      placeholder: 'A password'
+      value: credentials.password
+      onChange: (e) =>
+        credentials.password = e.target.value
+        save credentials
+
+  errors = \
+    if current_user.error
+      flash = setTimeout => 
+        delete current_user.error 
+        save current_user
+      , 10000
+
+      DIV 
+        style: 
+          backgroundColor: '#eee'
+          color: 'red'
+        current_user.error
+    else 
+      SPAN null
+
+
+  DIV null, 
+  
+    DIV
+      style: 
+        marginBottom: 24
+      
+      @props.intro_text or "Hi, please introduce yourself when posting."
+      " Or "
+      A 
+        style: 
+          textDecoration: 'underline'
+
+        onClick: toggle_form
+        onKeyPress: (e) -> 
+          if e.which == 32 || e.which == 13
+            toggle_form()
+        "log in"
+      " if you already have an account."
+
+
+    DIV 
+      style: {}
+                   
+      name_field
+      email_field
+      password_field
+
+      @props.additional_questions?.render?()
+
+
+      SET_AVATAR
+        inline_form: true
+
+      if @props.add_submit_button
+        BUTTON
+          disabled: !credentials_filled_out()
+          onClick: ->
+            submit_inline_registration 'email', window.additional_registration_questions
+          onKeyPress: (e) -> 
+            if e.which == 32 || e.which == 13
+              submit_inline_registration 'email', window.additional_registration_questions
+
+          style: 
+            backgroundColor: considerit_salmon
+            color: 'white'
+            fontWeight: 600
+            border: 'none'
+            fontSize: 18
+            padding: '2px 16px'
+            borderRadius: 8
+            verticalAlign: 'top'
+            display: 'block'
+            #marginLeft: 8
+            cursor: 'pointer'
+            marginTop: 4
+            marginLeft: 8
+            marginBottom: 2
+          "Register"
+
+        
+
+      errors
+
+credentials_filled_out = ->
+  credentials = fetch 'credentials'  
+  credentials.name && credentials.email?.length > 2 && credentials.email?.indexOf("@") > -1 && credentials.email?.indexOf(".") > -1 && credentials.password
+
+window.submit_inline_registration = (login_field, additional_questions) -> 
+  credentials = fetch 'credentials'
+  current_user = fetch '/current_user'
+
+  current_user.create_account =
+    name: credentials.name
+    login: credentials[login_field]
+    email: credentials.email 
+    pass: credentials.password 
+
+  current_user.login_as =
+    login: credentials[login_field]
+    name: credentials.name 
+    pass: credentials.password  
+
+  if additional_questions
+    current_user.private = {}
+    current_user.public = {}
+    additional_questions?.private?(current_user.private)
+    additional_questions?.public?(current_user.public)
+  save current_user
+
+
+
+
 
 
 dom.RESET_PASSWORD = -> 
@@ -561,6 +745,8 @@ dom.EDIT_PROFILE = ->
       if @local.credentials.password
         user.pass = @local.credentials.password
 
+      save user
+
       if @props.additional_questions
         current_user.private ||= {}
         current_user.public ||= {}
@@ -568,9 +754,9 @@ dom.EDIT_PROFILE = ->
         @props.additional_questions?.public?(current_user.public)
         save current_user
 
-      save user
       auth.form = null 
       save auth
+
 
 
   DIV   
@@ -628,9 +814,7 @@ File.prototype.convertToBase64 = (callback) ->
 
 dom.SET_AVATAR = -> 
   current_user = fetch '/current_user'
-  return SPAN null if !current_user.logged_in  
 
-  you = fetch(current_user.user)
   au = fetch 'auth'
 
   @local.cropped ?= {left: 0, top: 0}
@@ -688,11 +872,27 @@ dom.SET_AVATAR = ->
       ctx = canvas.getContext("2d")
       ctx.drawImage img, x, y, zoomed, zoomed, 0, 0, zoomed, zoomed
       @local.cropped_base64 = canvas.toDataURL("image/png", 1.0)
-      you.pic = @local.cropped_base64
-      save you
 
 
-  headshot_display_size = 300
+      if current_user.logged_in
+        you = fetch(current_user.user)
+        you.pic = @local.cropped_base64
+        save you
+      else
+        console.log 'WAITING TO LOGIN!'
+        cropped_base64 = @local.cropped_base64
+        wait_until_login = setInterval =>
+          current_user = fetch '/current_user'
+          if current_user.logged_in
+            you = fetch current_user.user
+            you.pic = cropped_base64
+            save you
+            clearInterval wait_until_login
+        , 500
+
+
+
+  headshot_display_size = if @props.inline_form then 100 else 300
 
   display_ratio = headshot_display_size / @local.width
 
@@ -700,26 +900,34 @@ dom.SET_AVATAR = ->
     style: 
       padding: 12
 
-    H1 
-      style: extend {}, h1_style, 
-        textAlign: 'center'
-      'Upload Avatar'
+    if !@props.inline_form
+      H1 
+        style: extend {}, h1_style, 
+          textAlign: 'center'
+        'Upload Avatar'
+    else 
+      DIV 
+        style: 
+          fontSize: 16
+        "Upload your avatar (optional):"
+
+    if !@props.inline_form
+      DIV 
+        style: 
+          marginBottom: 20
+          color: 'white'
+          fontSize: 14
+          textAlign: 'center'
+
+        "Please upload a nice picture of yourself! Preferably a headshot."
+
 
     DIV 
       style: 
-        marginBottom: 20
-        color: 'white'
-        fontSize: 14
-        textAlign: 'center'
-
-      "Please upload a nice picture of yourself! Preferably a headshot."
-
-    DIV 
-      style: 
-        backgroundColor: 'white'
-        boxShadow: '0 1px 2px rgba(0,0,0,.2)'
-        padding: 24
-        margin: 'auto'
+        backgroundColor: if !@props.inline_form then 'white'
+        boxShadow: if !@props.inline_form then '0 1px 2px rgba(0,0,0,.2)'
+        padding: if !@props.inline_form then 24
+        margin: if !@props.inline_form then 'auto'
         fontSize: 22
         maxWidth: headshot_display_size + 24 * 2
 
@@ -728,7 +936,7 @@ dom.SET_AVATAR = ->
         ref: 'avatar_upload'
         type: 'file'
         onChange: (e) =>
-          inp = @refs.avatar_upload.getDOMNode()
+          inp = e.target
           selectedFile = inp.files?[0]
           if selectedFile
             selectedFile.convertToBase64 (base64) =>
@@ -857,27 +1065,30 @@ dom.SET_AVATAR = ->
                 save_headshot()
 
             # upload button
-            INPUT 
-              type: 'submit'
-              style: extend {}, submit_button_style, 
-                marginTop: 40
+            if !@props.inline_form
+              INPUT 
+                type: 'submit'
+                style: extend {}, submit_button_style, 
+                  marginTop: 40
 
-              value: 'Upload'
-              onClick: -> au.form = null; save au
+                value: 'Done'
+                onClick: -> au.form = null; save au
 
-              onKeyPress: (e) =>
-                if e.which in [18,32]
-                  au.form = null; save au
+                onKeyPress: (e) =>
+                  if e.which in [18,32]
+                    au.form = null; save au
 
-        else if you.pic
+        else if current_user.logged_in 
+          you = fetch(current_user.user)
+          if you.pic
 
-          AVATAR 
-            user: you 
-            hide_tooltip: true
-            style: 
-              width: headshot_display_size
-              height: headshot_display_size
-              borderRadius: '50%'
+            AVATAR 
+              user: you 
+              hide_tooltip: true
+              style: 
+                width: headshot_display_size
+                height: headshot_display_size
+                borderRadius: '50%'
 
 
 ################
@@ -996,7 +1207,7 @@ dom.USER_MENU = ->
           child 
 
 orange = '#e89e00'
-dom.AUTH_FIRST = -> 
+dom.AUTH_FIRST = ->  
   current_user = fetch '/current_user'
 
   return SPAN null if current_user.logged_in

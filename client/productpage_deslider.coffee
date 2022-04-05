@@ -1,6 +1,6 @@
 set_style """
   [data-widget="BODY"]  {
-    font-family: 'Raleway', Georgia,Cambria,"Times New Roman",Times,serif; // Helvetica Neue, Segoe UI, Helvetica, Arial, sans-serif; 
+    font-family: 'Montserrat', Georgia,Cambria,"Times New Roman",Times,serif; // Helvetica Neue, Segoe UI, Helvetica, Arial, sans-serif; 
     font-size: 16px;
     color: black;
     line-height: 1.4;

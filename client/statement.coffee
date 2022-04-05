@@ -35,6 +35,7 @@ dom.BUBBLE_WRAP = ->
           left: -64
         hide_tooltip: false 
         anonymous: @props.anon
+        prompt_avatar: true
 
     DIV 
       style : defaults {}, (@props.bubble_style or {}),

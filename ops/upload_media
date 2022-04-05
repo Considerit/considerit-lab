@@ -1,0 +1,100 @@
+#!/bin/bash
+
+
+SCRIPT_PATH=`dirname "$0"`
+
+process_media() {
+  no_extension="${1%.*}"
+  filename=$(basename "$1")
+
+  extension="${filename##*.}"
+  extension=${extension,,} # lowercase
+
+
+  echo "Processing media $filename"
+
+  # looks like Photos doesn't have location data embedded in EXIF
+  # exiftool -gpslatitude -gpslongitude $1 | echo 
+
+  if [[ "$extension" == "jpg" || "$extension" == "jpeg" ]]
+  then 
+
+    if [[ "$filename" == *"-original"* || "$filename" == *"-shrunk"* || "$filename" == *"-small"* ]]
+    then
+      :
+    else 
+      original="$no_extension-original.$extension"
+
+      shrunk="$1" # "$no_extension-shrunk.$extension" # $1
+      webp="$no_extension.webp"
+
+      if [[ ! -f $original ]]
+      then 
+        echo "...compressing"
+        cp "$1" "$original"
+        convert "$original[1600x>]" -auto-orient "$shrunk"
+        jpegoptim "$shrunk"
+
+        echo "...converting to webp"      
+        cwebp -sharp_yuv -q 60 "$shrunk" -o "$webp"
+      fi 
+
+      small="$no_extension-small.$extension"
+      webp="$no_extension-small.webp"
+      if [[ ! -f $small ]]
+      then 
+        convert "$original[800x>]" -auto-orient "$small"
+        echo "...compressing"
+        jpegoptim "$small"
+        echo "...converting to webp"      
+        cwebp -sharp_yuv -q 60 "$small" -o "$webp"
+      fi 
+
+    fi
+
+
+
+  fi
+
+  if [[ "$1" == *.mov || "$1" == *.MOV ]]
+  then
+    
+
+    if [[ ! -f "$no_extension.mp4" ]]
+    then
+      echo "converting $1 to .mp4"
+      ffmpeg -y -i "$1" -vcodec libx264 -crf 30 "$no_extension.mp4"
+      # ffmpeg -y -i "$1" -vcodec libx264 -crf 24 "$no_extension-better.mp4"
+      ffmpeg -y -i "$1" -vcodec libx264 -crf 36 "$no_extension-small.mp4"
+
+    fi 
+
+    if [[ ! -f "$no_extension-small.mp4" ]]
+    then
+      echo "converting $1 to .mp4"
+      ffmpeg -y -i "$1" -vcodec libx264 -crf 36 "$no_extension-small.mp4"
+    fi 
+
+
+  fi
+}
+
+
+process_directory() {
+  echo "Processing directory $1"
+  for filename in "$1"/*; do
+    if [ -d "$filename" ]
+    then
+      # echo "$filename is a directory"
+      process_directory "$filename"
+    else  
+      # echo "$filename is NOT"
+      process_media "$filename"
+    fi
+  done
+}
+
+process_directory "$SCRIPT_PATH/../static/media"
+
+
+node "$SCRIPT_PATH/sync_with_s3.js"

@@ -1,5 +1,6 @@
 
-
+is_host = ->
+  fetch('/current_user').user?.email == 'travis@consider.it'
 
 fickle.register (upstream_vars) -> 
   window_w = upstream_vars.window_width
@@ -23,9 +24,9 @@ fickle.register (upstream_vars) ->
     content_width = window_w - 2 * doc_padding
     author_col = Math.min(150, content_width * .15) * .8
     opinion_col = Math.max 50, content_width * .17
-    content_col = Math.max 200, Math.min(720, content_width - opinion_col - author_col - 2 * bubble_padding_x)
+    content_col = Math.max 200, Math.min(820, content_width - opinion_col - author_col - 2 * bubble_padding_x)
 
-  mouth_width = content_col * .07
+  mouth_width = content_col * 0.07
 
   return {
     mobile_layout: mobile_layout
@@ -48,11 +49,11 @@ focus_blue = '#2478CC'
 post_bg = '#F5F5F5' #'#F4F6F8'
 
 
-brandon = '"Brandon Grotesque", "Raleway", Helvetica, arial'
+brandon = '"Brandon Grotesque", "Montserrat", Helvetica, arial'
 
 set_style """
   [data-widget="BODY"]  {
-    font-family: 'Raleway', Computer Modern Serif, Georgia,Cambria,"Times New Roman",Times,serif; // Helvetica Neue, Segoe UI, Helvetica, Arial, sans-serif; // 'Computer Modern Sans', 'Helvetica', arial;
+    font-family: 'Montserrat', Computer Modern Serif, Georgia,Cambria,"Times New Roman",Times,serif; // Helvetica Neue, Segoe UI, Helvetica, Arial, sans-serif; // 'Computer Modern Sans', 'Helvetica', arial;
     font-size: 18px;
     color: black;
     line-height: 1.5;
@@ -64,7 +65,7 @@ set_style """
   } [data-widget="BODY"] h1, [data-widget="BODY"] h2, [data-widget="BODY"] h3 {
     //font-family: 'Trocchi', 'Roboto Condensed', 'Computer Modern Concrete', 'Computer Modern Bright', 'Helvetica', arial;
     
-    font-family: 'Brandon Grotesque', 'Raleway', Helvetica, arial;
+    font-family: 'Brandon Grotesque', 'Montserrat', Helvetica, arial;
     font-weight: 400;
     //letter-spacing: 1px;
   } [data-widget="BODY"] h1 {
@@ -95,7 +96,7 @@ set_style """
     cursor: pointer;
   }
 
-  textarea, input[type='text'], input[type='email'], button {
+  textarea, input[type='text'], input[type='email'], input[type='password'], button {
     font-size: inherit;
     font-weight: inherit;
     line-height: inherit;
@@ -116,6 +117,66 @@ set_style """
 
   [data-widget="BASIC_SLIDER_LABEL"] {
     font-size: 20px;
+  }
+
+  [data-widget="BODY"] figure {
+    margin:  1.5em 0px;
+    padding: 0;
+    width: 100%;
+    text-align: center;
+  } 
+
+  [data-widget="BODY"] figure img, [data-widget="BODY"] figure video {
+    border: 1px solid #ddd;
+  }
+
+  figcaption {
+    font-size: 85%;
+    text-align: left;
+    padding: 12px;
+    text-align: left;
+    background: #eee;
+  }
+
+  figcaption.short {
+    text-align: center;
+  }
+  .update {
+    font-size: 85%;
+    text-align: left;
+    padding: 12px;
+    text-align: left;
+    background: #eee;    
+  }
+
+  h1 {
+    position: relative;
+  }
+  [data-widget="BODY"] h2 {
+    font-weight: 500;
+  }
+  h1 img {
+    position: absolute;
+    width: 120px;
+    left: -165px;
+    top: 4px;
+  }
+
+  li {
+    margin-bottom: 8px;
+  }
+
+
+  figure.side {
+    width: 40%;
+  }
+  figure.right.side {
+    float: right;
+    margin-left: 24px;
+  }
+  figure.left.side {
+    float: left; 
+    margin-right: 24px;
   }
 
 """
@@ -153,9 +214,22 @@ dom.BODY = ->
     DIV 
       style: 
         marginTop: if fickle.mobile_layout then 80 else 0
+        minHeight: '100vh'
 
       if !loc.path || loc.path == '/'
         INTRO()
+
+      else if loc.path.match '/prototype-liquid-finance-thhdbb'
+        DIV 
+          style: 
+            padding: '120px 80px'
+
+          if loc.path.match /\/prototype-liquid-finance-thhdbb\/[a-zA-Z]+/
+            LIQUID_NETWORK
+              name: loc.path.split('/prototype-liquid-finance-thhdbb')[1]
+
+          else 
+            LIQUID_FINANCE_INDEX()
 
       else 
         BLOG_POST
@@ -165,7 +239,7 @@ dom.BODY = ->
     PAGE_FOOTER()
 
     TOOLTIP?({key: 'tooltip'})
-    StateDash()
+    IMAGE_MODAL()
     
 
 dom.BODY.up = -> 
@@ -184,35 +258,60 @@ dom.BLOG_AUTH = ->
       width: '100%'
       height: '100%'
       position: 'fixed'
-      
+
     AUTH
       login_field: 'email'
-      style: 
+      style:
         backgroundColor: considerit_salmon
-      additional_questions: 
-        render: ->
-          user = fetch('/current_user').user
-          if user 
-            private_user = fetch user.key + '/private/'
+      additional_questions: additional_registration_questions
 
-            private_user["#{get_forum()}_subscribe_to_email"] ?= true
+dom.INLINE_BLOG_AUTH = -> 
+  INLINE_LOGIN
+    additional_questions: additional_registration_questions
 
-          DIV null,
 
-            INPUT 
-              id: 'mailing_list'
-              type: 'checkbox'
-              name: 'mailing_list'
-              defaultChecked: if private_user? then private_user["#{get_forum()}_subscribe_to_email"] else true
+additional_registration_questions =  
+  render: ->
 
-            LABEL 
-              htmlFor: 'mailing_list'
-              style: 
-                paddingLeft: 8
-              "It's ok for Travis to send me occasional email about new blog posts"
-        private: (obj) -> 
-          obj["#{get_forum()}_subscribe_to_email"] = document.getElementById('mailing_list').checked
-          obj 
+    return DIV null
+    
+    user = fetch('/current_user').user
+    if user 
+      private_user = fetch user.key + '/private/'
+
+      private_user["#{get_forum()}_subscribe_to_email"] ?= false
+
+
+
+    DIV 
+      style: 
+        display: 'flex'
+
+
+
+
+      INPUT 
+        id: 'mailing_list'
+        type: 'checkbox'
+        defaultChecked: if private_user? then private_user["#{get_forum()}_subscribe_to_email"] else false
+        style: 
+          position: 'relative'
+          top: 4
+          marginRight: 8
+          fontSize: 18
+          minWidth: 20
+
+      LABEL 
+        htmlFor: 'mailing_list'
+        style: 
+          fontSize: 14
+
+
+        "It's ok for me to send you occasional email about new blog posts, like so occasional that I still haven't sent any"
+
+  private: (obj) -> 
+    obj["#{get_forum()}_subscribe_to_email"] = document.getElementById('mailing_list')?.checked
+    obj 
 
 dom.PAGE_HEADER = -> 
   auth = fetch 'auth'
@@ -313,6 +412,7 @@ dom.PAGE_HEADER = ->
           color: 'white' #'#888'
           textDecoration: 'none'
           fontSize: 26
+          zIndex: 1
 
         dangerouslySetInnerHTML: __html: "&lt;&nbsp;<span style='text-decoration: underline'>back home</span>"
         
@@ -322,6 +422,8 @@ dom.INTRO = ->
   root = fetch "/post/#{get_forum()}_root"
   DIV 
     style: {}
+
+
 
     BLOG_POST
       key: 'root post'
@@ -334,18 +436,30 @@ dom.INTRO = ->
     DIV 
       style: 
         marginLeft: if !fickle.mobile_layout then fickle.author_col + fickle.mouth_width
-        marginTop: 50
+        marginTop: 24
         padding: if fickle.mobile_layout then 0 else "0px #{fickle.bubble_padding_x}px"
         width: fickle.content_col
         
       INDEX()  
 
 
-    
+
+
 
 dom.INDEX = ->
   root = fetch "/post/#{get_forum()}_root"
   posts = root.children
+
+  posts.sort (a,b) ->
+    a = fetch(a); b = fetch(b)
+    if a.published && b.published
+      (b.published_on or b.edits?[0]?.time) - (a.published_on or a.edits?[0]?.time)
+    else if !a.published && !b.published
+      b.edits?[0]?.time - a.edits?[0]?.time
+    else if !a.published
+      1
+    else 
+      -1
 
   current_user = fetch '/current_user'
 
@@ -356,34 +470,32 @@ dom.INDEX = ->
       marginLeft: 0
       position: 'relative'
 
-    DIV 
-      className: 'script'    
-      style: 
-        position: 'absolute'
-        left: -fickle.bubble_padding_x * 3
-        top: -33
-        color: '#A2A2A2'
-        fontSize: 22
-        display: if fickle.mobile_layout then 'none'
-        verticalAlign: 'top'
+    # DIV 
+    #   className: 'script'    
+    #   style: 
+    #     position: 'absolute'
+    #     left: -fickle.bubble_padding_x * 3
+    #     top: -33
+    #     color: '#A2A2A2'
+    #     fontSize: 22
+    #     display: if fickle.mobile_layout then 'none'
+    #     verticalAlign: 'top'
 
+    #   "Read a post!"
 
-      "Read a post!"
-
-      SVG 
-        viewBox: "0 0 49 17"
-        stroke: '#A2A2A2'
-        fill: '#A2A2A2'
-        width: 36
-        dangerouslySetInnerHTML: __html: """<g><path d="M6.2,9.3 C6,9.4 6.2,10.9 6.2,10.9 C13,10.6 19.7,9.3 26.5,8.8 C33.3,8.3 40.1,8.1 47,7.6 C47.2,7.6 47.2,4.1 46.9,4 C33.9,3.1 18.5,4.7 6.2,9.3 Z"></path><path d="M0.2,16.1 C6.1,16 11.9,16.5 17.7,16.5 C17.8,16.5 17.9,13.7 17.6,13.6 C12.6,12.7 7.4,12.8 2.4,13.1 C5.5,9.2 8.8,5.4 11.6,1.3 C11.7,1.2 11.5,0.6 11.6,0.5 C7.2,3.7 3.5,9 0.2,13.2 C-0.1,13.6 6.66133815e-16,16.1 0.2,16.1 Z"></path></g>"""
-        style: 
-          position: 'relative'
-          top: 42
-          right: '29%'
-          zIndex: 2
-          verticalAlign: 'top'
-          transform: 'rotate(220deg)'
-
+    #   SVG 
+    #     viewBox: "0 0 49 17"
+    #     stroke: '#A2A2A2'
+    #     fill: '#A2A2A2'
+    #     width: 36
+    #     dangerouslySetInnerHTML: __html: """<g><path d="M6.2,9.3 C6,9.4 6.2,10.9 6.2,10.9 C13,10.6 19.7,9.3 26.5,8.8 C33.3,8.3 40.1,8.1 47,7.6 C47.2,7.6 47.2,4.1 46.9,4 C33.9,3.1 18.5,4.7 6.2,9.3 Z"></path><path d="M0.2,16.1 C6.1,16 11.9,16.5 17.7,16.5 C17.8,16.5 17.9,13.7 17.6,13.6 C12.6,12.7 7.4,12.8 2.4,13.1 C5.5,9.2 8.8,5.4 11.6,1.3 C11.7,1.2 11.5,0.6 11.6,0.5 C7.2,3.7 3.5,9 0.2,13.2 C-0.1,13.6 6.66133815e-16,16.1 0.2,16.1 Z"></path></g>"""
+    #     style: 
+    #       position: 'relative'
+    #       top: 42
+    #       right: '29%'
+    #       zIndex: 2
+    #       verticalAlign: 'top'
+    #       transform: 'rotate(220deg)'
 
     DIV null,
 
@@ -392,7 +504,7 @@ dom.INDEX = ->
           post: post
           key: (post.key or post)
 
-    if current_user.logged_in && current_user.user.email == 'travis@consider.it'
+    if is_host()
 
       DIV 
         style: 
@@ -411,10 +523,24 @@ dom.INDEX = ->
             marginLeft: fickle.bubble_padding_x
 
 
+set_style """
+
+  [data-widget="POST_SUMMARY"] {
+    min-height: 200px;
+  }
+
+  [data-widget="POST_SUMMARY"] .img_thumb img {
+    object-fit: cover;
+    width: 350px;
+    max-height: 350px;
+  }
+
+"""
+
 dom.POST_SUMMARY = -> 
   
   post = fetch @props.post 
-  date = post.edits?[0]?.time
+  date = post.published_on or post.edits?[0]?.time
 
   return SPAN null if !post.published && post.user != fetch('/current_user').user?.key
   
@@ -426,37 +552,99 @@ dom.POST_SUMMARY = ->
 
   DIV 
     style: 
-      marginBottom: 24
+      marginBottom: 48
+      position: 'relative'
+      left: if !fickle.mobile_layout then -(fickle.author_col + fickle.mouth_width)
+      width: fickle.content_col + fickle.author_col
 
     A name: "#{post.key.split('/')[2]}"
-    H2 
-      style: 
-        fontSize: 36
-        marginBottom: 8
-        
-      A
-        href: "/#{post.key.split('/')[2]}"
-        style: 
-          color: considerit_salmon #'black'
-          fontWeight: 600
-        post.title
-
+    
     DIV 
-      style:
-        color: '#888'
-        fontSize: 14
+      style: 
+        marginBottom: 8
+        display: 'flex'
 
-      "posted #{month} #{day}, #{year} by Travis Kriplean" 
 
-      if !post.published
-        SPAN 
+      if post.image && fickle.content_col > 625
+        DIV 
+          className: 'img_thumb'
           style: 
-            backgroundColor: considerit_salmon
-            color: 'white'
-            marginLeft: 8
-            display: 'inline-block'
-            padding: '1px 2px'
-          'unpublished'
+            marginRight: 24
+            marginTop: 12
+          
+          IMG 
+            src: post.image
+
+      DIV 
+        className: 'info_thumb' 
+
+        H2 
+          style: 
+            marginTop: 0
+            marginBottom: 8
+
+          A
+            href: "/#{post.key.split('/')[2]}"
+            style: 
+              color: considerit_salmon #'black'
+              fontWeight: 600
+              fontSize: 36
+            post.title
+
+        DIV 
+          style:
+            color: '#888'
+            fontSize: 14
+            marginBottom: 18
+
+          "#{month} #{day}, #{year} by Travis Kriplean" 
+
+          if !post.published && is_host()
+            SPAN 
+              style: 
+                color: considerit_salmon
+                marginLeft: 8
+                display: 'inline-block'
+                padding: '1px 2px'
+              'unpublished'
+
+          if post.published && is_host()
+            BUTTON 
+              style: 
+                backgroundColor: 'transparent'
+                border: 'none'
+                textDecoration: 'underline'
+                color: 'black'
+              onClick: (e) ->
+                if confirm('You sure you want to unpublish this post?')
+                  post.published_on = null 
+                  post.published = false
+                  save post
+              'unpublish'
+
+          if is_host()
+            BUTTON 
+              style: 
+                backgroundColor: 'transparent'
+                border: 'none'
+                textDecoration: 'underline'
+                color: 'black'
+              onClick: (e) ->
+                if confirm('You sure you want to delete this post?')
+                  bus.delete post
+              'delete'
+
+        if post.description
+          DIV 
+            style: 
+              fontSize: 14
+              color: '#666'
+            if post.description.length > 300
+              post.description.substring(0,300) + '...'
+            else 
+              post.description
+
+
 
 
 
@@ -465,7 +653,7 @@ dom.BLOG_POST = ->
   @props.show_meta ?= true
 
   post = fetch @props.post 
-  date = post.edits?[0]?.time
+  date = post.published_on or post.edits?[0]?.time
 
   return DIV null if !date 
 
@@ -479,22 +667,43 @@ dom.BLOG_POST = ->
 
   is_author = current_user.user?.key == post.user 
 
-  DIV null,
+  DIV 
+    className: if post.longform then 'longform'
+
+
+    # # trying to trick the browser into preloading some important media
+    # if post.key == '/post/an-informal-curriculum-for-hom-fx1md'
+    #   DIV 
+    #     dangerouslySetInnerHTML: __html: """
+    #       <video src="https://ddbjipgwr13mk.cloudfront.net/static/media/an-informal-curriculum-for-hom-fx1md/IMG_1769 3.mp4" poster="https://ddbjipgwr13mk.cloudfront.net/static/media/bear-loader.webp"  importance="high" width="100%" controls autoplay loop muted>
+    #         <source src="https://ddbjipgwr13mk.cloudfront.net/static/media/an-informal-curriculum-for-hom-fx1md/IMG_1769 3.mp4" type="video/mp4">
+    #       </video>"""
+    #     style: 
+    #       height: 1
+    #       opacity: .1
+    #       overflow: 'hidden'
+
 
     DIV 
       style: 
-        # marginTop: 40
+        marginTop: if post.longform then 80
         display: 'flex'
         flexDirection: 'row'
         alignItems: 'flex-start'
         marginLeft: if !fickle.mobile_layout then -fickle.doc_padding
 
       if !fickle.mobile_layout
-        TRAVIS()
+        DIV 
+          style: 
+            position: if post.longform then 'absolute'
+          TRAVIS()
 
-      DIV null, 
+      DIV 
+        style: 
+          margin: if post.longform then 'auto' 
 
         DIV 
+
           style: 
             width: fickle.content_col + fickle.mouth_width # - fickle.bubble_padding_x * 2
             position: 'relative'
@@ -510,7 +719,7 @@ dom.BLOG_POST = ->
             width: fickle.content_col #- fickle.bubble_padding_x * 2
             html_WYSIWYG: true
 
-            wrapper: BUBBLE_WRAP
+            wrapper: if post.longform then DIV else BUBBLE_WRAP
             wrapper_attributes:
               wrapper_style: 
                 paddingLeft: if !fickle.mobile_layout then fickle.mouth_width
@@ -560,13 +769,39 @@ dom.BLOG_POST = ->
                     color: '#888'
                     fontSize: 14
 
-                  "posted #{month} #{day}, #{year} by Travis Kriplean" 
+                  "published #{month} #{day}, #{year} by Travis Kriplean" 
 
         if is_author && post.parent
           DIV 
             style: 
               marginLeft: 50
               marginTop: 20
+
+
+            DIV null, 
+              LABEL 
+                style: {}
+                "Description"
+
+                TEXTAREA 
+                  type: 'text'
+                  defaultValue: post.description
+                  onChange: (ev) -> 
+                    post.description = ev.target.value 
+                    save post 
+
+            DIV null,
+              LABEL 
+                style: {}
+                "Image (link)"
+
+                INPUT 
+                  type: 'text'
+                  defaultValue: post.image
+                  onChange: (ev) -> 
+                    post.image = ev.target.value 
+                    save post 
+
 
             BUTTON 
               backgroundColor: considerit_salmon
@@ -577,6 +812,8 @@ dom.BLOG_POST = ->
 
               onClick: ->
                 post.published = !post.published 
+                post.published_on = (new Date()).getTime()
+
                 save post
 
               if !post.published
@@ -589,7 +826,7 @@ dom.BLOG_POST = ->
         if @props.enable_comments
           DIV 
             style: 
-              marginLeft: fickle.mouth_width
+              marginLeft: if !post.longform then fickle.mouth_width
               marginTop: 50
 
             COMMENTS
@@ -670,12 +907,32 @@ dom.BLOG_POST = ->
                 'learn more'
 
 dom.BLOG_POST.refresh = ->
-  if @refs.title_block
+  if SLIDERGRAMS_ENABLED && @refs.title_block
     rect = @refs.title_block.getDOMNode().getBoundingClientRect()
     instructions_top = @refs.title_block.getDOMNode().getBoundingClientRect().height - 20
     if @local.instructions_top != instructions_top
       @local.instructions_top = instructions_top
       save @local
+
+  dragon_roar = =>
+    audio = new Audio('https://ddbjipgwr13mk.cloudfront.net/static/media/exploring-the-mythical-6h6z2/Dragon Tense.mp3');
+    audio.play()
+    setTimeout ->
+      audio.pause()
+    , 3000
+
+
+  post = fetch @props.post 
+  if post.key == "/post/exploring-the-mythical-6h6z2"
+    img = @getDOMNode().querySelector('img.modal_eligible')
+    if img
+      img.removeEventListener('mouseenter', dragon_roar) 
+      img.addEventListener('mouseenter', dragon_roar) 
+
+
+
+
+
 
 
 dom.TITLE_BLOCK = -> 
@@ -717,7 +974,9 @@ dom.COMMENTS = ->
   posts = fetch(@props.post).children or []
 
   posts.sort (a,b) -> 
-    fetch(b).edits?[0].time - fetch(a).edits?[0].time
+    a = fetch(a)
+    b = fetch(b)
+    (b.published_on or b.edits?[0].time) - (a.published_on or a.edits?[0].time)
 
   current_user = fetch '/current_user'
 
@@ -731,12 +990,13 @@ dom.COMMENTS = ->
       style: 
         fontWeight: 800
 
-      "Discussion"
+      "Let's talk"
 
 
 
 
-    START_THREAD()
+    START_THREAD
+      post: @props.post 
 
     # # Divider
     # DIV 
@@ -758,6 +1018,7 @@ dom.COMMENTS = ->
 
 
 
+
     DIV 
       ref: 'posts_area'
 
@@ -766,7 +1027,6 @@ dom.COMMENTS = ->
           post: post
           key: (post.key or post)
 
-    START_THREAD()
 
 
 
@@ -777,6 +1037,8 @@ dom.COMMENTS = ->
 
 dom.START_THREAD = ->
   current_user = fetch '/current_user'
+  credentials = fetch 'credentials'
+
   DIV 
     position: 'relative'
 
@@ -816,41 +1078,40 @@ dom.START_THREAD = ->
     if !current_user.logged_in 
       DIV 
         style: 
-          border: "1px dashed #aaa"
+          # border: "1px dashed #aaa"
           width: fickle.content_col
-          margin: "0px 0 55px 0"
-
-        AUTH_FIRST
-          style: 
-            backgroundColor: 'white'
-            # fontFamily: brandon
-            color: '#222'
-            fontSize: 18
-            marginBottom: 0
-            padding: "18px 36px"
-          button_style:
-            color: considerit_salmon
+          margin: "0px 0 24px 0"
 
 
+        INLINE_BLOG_AUTH()
 
-          before: 'Please '
-          after: ' to add a comment'
+        # AUTH_FIRST
+        #   style: 
+        #     backgroundColor: 'white'
+        #     # fontFamily: brandon
+        #     color: '#222'
+        #     fontSize: 18
+        #     marginBottom: 0
+        #     padding: "18px 36px"
+        #   button_style:
+        #     color: considerit_salmon
+        #   before: 'Please '
+        #   after: ' to add a comment'
 
-    else 
-
-      NEW_POST 
-        key: 'new post'
-        placeholder: 'Reply to Travis\' post'
-        min_height: 72
-        show_border: true
-        parent: @props.post
-        wrapper_style: 
-          width: fickle.content_col # - fickle.bubble_padding_x * 2
-          # marginLeft: fickle.bubble_padding_x
-          margin: "0px 0 55px 0"
-          display: 'block'
-        text_box_style:
-          padding: '2px 6px'  
+    NEW_POST 
+      key: 'new post'
+      placeholder: 'Reply to Travis\' post'
+      min_height: 72
+      show_border: true
+      parent: @props.post
+      wrapper_style: 
+        width: fickle.content_col # - fickle.bubble_padding_x * 2
+        # marginLeft: fickle.bubble_padding_x
+        margin: "0px 0 55px 0"
+        display: 'block'
+      text_box_style:
+        padding: '2px 6px' 
+      disabled: !current_user.logged_in && !(credentials.name && credentials.email && credentials.password) 
 
 dom.THREAD = ->  
   pst = fetch(@props.post.key or @props.post)
@@ -963,30 +1224,33 @@ dom.NEW_POST = ->
           placeholder: 'Short title'
           value: @local.title
 
-      AUTOSIZEBOX
-        onFocus: => @local.focused = true; save @local
-        onBlur: => @local.focused = false; save @local
-        onChange: (e) => @local.new_post = e.target.value; save(@local)
+      if !@props.with_title
 
-        key: 'body'
-        style: defaults {}, (@props.text_box_style or {}),
-          width: '100%'
-          minHeight: @props.min_height
-          maxHeight: 600
-          padding: 0
-          fontSize: 18
-          border:   if show_border
-                      '1px solid #ccc'
-                    else
-                      '1px solid transparent'
-          display: 'block'
-          outline: 'none'
-        placeholder: @props.placeholder
-        value: @local.new_post
+        AUTOSIZEBOX
+          onFocus: => @local.focused = true; save @local
+          onBlur: => @local.focused = false; save @local
+          onChange: (e) => @local.new_post = e.target.value; save(@local)
 
-      if @local.new_post?.length > 0 && (!@props.with_title || @local.title?.length > 0)
+          key: 'body'
+          style: defaults {}, (@props.text_box_style or {}),
+            width: '100%'
+            minHeight: @props.min_height
+            maxHeight: 600
+            padding: 0
+            fontSize: 18
+            border:   if show_border
+                        '1px solid #ccc'
+                      else
+                        '1px solid transparent'
+            display: 'block'
+            outline: 'none'
+          placeholder: @props.placeholder
+          value: @local.new_post
+
+      if (@props.with_title || @local.new_post?.length > 0) && (!@props.with_title || @local.title?.length > 0)
         BUTTON
           type: 'submit'
+          disabled: if @props.disabled || (!@props.with_title && !@local.new_post) then true
           style: 
             backgroundColor: considerit_salmon
             color: 'white'
@@ -1006,27 +1270,51 @@ dom.NEW_POST = ->
 
 
           onClick: (e) =>
-            if @local.new_post
-              @local.new_post = protect_leading_new_line(@local.new_post)
+            if @local.new_post || @props.with_title
 
-              new_post = 
-                key: new_key('post', @local.title)
-                body: @local.new_post
-                title: if @props.with_title then @local.title
-                user: your_key()
-                parent: @props.parent.key if @props.parent
-                children: if !@props.parent then []
-                forum: if !@props.parent then get_forum()
-                published: @props.publish_immediately
-                edits: [{
-                  user: your_key(),
-                  time: (new Date()).getTime()
-                  }]
+              submit_post = =>
+                if @local.new_post 
+                  @local.new_post = protect_leading_new_line(@local.new_post)
 
-              save new_post
+                new_post = 
+                  key: new_key('post', @local.title)
+                  body: @local.new_post
+                  title: if @props.with_title then @local.title
+                  user: your_key()
+                  parent: @props.parent.key if @props.parent
+                  children: if !@props.parent then []
+                  forum: if !@props.parent then get_forum()
+                  published: @props.publish_immediately
+                  published_on: if @props.publish_immediately then (new Date()).getTime()
+                  edits: [{
+                    user: your_key(),
+                    time: (new Date()).getTime()
+                    }]
 
-              @local.new_post = ''
-              save @local
+                save new_post
+
+                @local.new_post = ''
+                save @local
+
+              current_user = fetch '/current_user'
+              if !current_user.logged_in 
+                submit_inline_registration 'email', additional_registration_questions
+
+                if !@waiting_for_login
+                  @waiting_for_login = true 
+                  wait_for_login = setInterval =>
+                    if current_user.logged_in
+                      @waiting_for_login = false
+                      clearInterval wait_for_login
+                      submit_post()
+                    else if current_user.error
+                      clearInterval wait_for_login
+                  , 100
+
+              else 
+                submit_post()
+
+
 
 
           'Post'
@@ -1080,9 +1368,10 @@ dom.POST = ->
           dy: -1
           dx: 3
           opacity: .2
+          fill: '#666666'
         avatar_style: 
-          top: -34
-          left: -100
+          top: -48
+          left: -105
           borderRadius: '50%'
           width: 100
           height: 100
@@ -1234,7 +1523,7 @@ dom.MAILING_LIST_SIGNUP = ->
   DIV 
     style:       
       color: 'white'
-      fontFamily: '"Brandon Grotesque", Raleway, Helvetica, arial'
+      fontFamily: '"Brandon Grotesque", Montserrat, Helvetica, arial'
       maxWidth: 400
       margin: 'auto'
 
@@ -1314,14 +1603,13 @@ dom.MAILING_LIST_SIGNUP = ->
 
 dom.PAGE_FOOTER = -> 
 
-  FOOTER null,
-    DIV 
-      style: 
-        marginTop: 100
+  FOOTER 
+    style: 
+      # height: 266
+      width: '100%'
+      marginTop: 100
 
-      MAILING_LIST_SIGNUP()    
-
-
+    MAILING_LIST_SIGNUP()    
 
     LAB_FOOTER()    
 

@@ -45,15 +45,20 @@
 #     Convenience method for changing the page's url
 
 
-window.get_script_attr ||= (script, attr) ->
+window.get_script_attr ?= (script, attr) ->
   sc = document.querySelector("script[src*='#{script}'][src$='.coffee'], script[src*='#{script}'][src$='.js']")
-  val = sc.getAttribute(attr)
+  if !sc 
+    return false
+  val = sc?.getAttribute(attr)
   if val == ''
     val = true 
   val 
 
 
-hist_aware = !!get_script_attr('earl', 'history-aware-links')  
+hist_aware = if window.history_aware_links?
+               window.history_aware_links
+             else  
+               !!get_script_attr('earl', 'history-aware-links')  
 
 onload = -> 
 
@@ -120,7 +125,17 @@ window.Earl =
     loc.path = path.replace('//', '/')
     loc.url = path.substring(Earl.root.length).replace('//', '/')
     loc.hash = hash
-    save loc
+
+
+    if save? 
+      save loc
+    else 
+      wait_for_load = ->
+        if save? 
+          save loc 
+        else 
+          setTimeout wait_for_load, 25
+      wait_for_load()
 
 
 
@@ -273,8 +288,8 @@ url_from_statebus = ->
 
 
 # For handling device-specific annoyances
-document.ontouchmove = (e) -> Earl._user_swipping = true
-document.ontouchend  = (e) -> Earl._user_swipping = false
+window.addEventListener 'ontouchstart', (e) -> Earl._user_swipping = true
+window.addEventListener 'ontouchend',   (e) -> Earl._user_swipping = false
 rxaosp = window.navigator.userAgent.match /Android.*AppleWebKit\/([\d.]+)/ 
 is_android_browser = !!(rxaosp && rxaosp[1]<537)
 ua = navigator.userAgent

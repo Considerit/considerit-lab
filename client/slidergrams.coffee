@@ -48,9 +48,7 @@ dom.SLIDERGRAM = ->
 
   slidergram_width = @props.width
 
-
   sldr.poles ||= ['','']
-  pole_label = sldr.poles[1]
 
   # console.log 'RENDERING value', get_your_slide(sldr)?.value
 
@@ -89,26 +87,24 @@ dom.SLIDERGRAM = ->
       LABEL_TAG = @props.draw_label or BASIC_SLIDER_LABEL
       DIV  
         style: 
-          marginBottom: -32/2
-          lineHeight: 0
-          marginRight: 6
+
+          marginRight: 12
+          marginBottom: -12
 
         LABEL_TAG
           style: 
-            fontSize: 32
+            fontSize: 14
             fontWeight: 400
             color:  @props.slider_color or SLIDER_COLOR
 
           key: sldr.key
           sldr: sldr
           height: @props.height
-          mode: 'emoji'
-          text: split_label(pole_label)[0]
+          text: sldr.poles[0]
+          pole_idx: 0
           onInput: (e) =>
-            old_text = split_label pole_label 
-            new_text = e.target.innerHTML
-            sldr.poles[1] = new_text + ' ' + (old_text[1] or '')
-            save sldr
+            sldr.poles[0] = e.target.innerHTML
+            # save sldr
 
 
     DIV 
@@ -197,17 +193,11 @@ dom.SLIDERGRAM = ->
           key: sldr.key
           sldr: sldr
           height: @props.height
-          mode: 'after text'
-          text: if @props.one_sided then pole_label else split_label(pole_label)[1]
+          pole_idx: 1
+          text: sldr.poles[1]
           onInput: (e) =>
-            new_text = e.target.innerHTML
-
-            if @props.one_sided
-              sldr.poles[1] = new_text
-            else 
-              old_text = split_label pole_label 
-              sldr.poles[1] = (old_text[0] or '') + ' ' + new_text
-            save sldr
+            sldr.poles[1] = e.target.innerHTML
+            # save sldr
 
 
 
@@ -261,14 +251,15 @@ set_style """
 """
 dom.BASIC_SLIDER_LABEL = ->
 
-  sldr = fetch @props.sldr 
+  sldr = fetch @props.sldr
+  pole_idx = @props.pole_idx
+  pole_idx ?= 1
 
   if !@local.text? or @props.text != @local.text
-    @local.text = @props.text or sldr.poles?[1] or '+'
+    @local.text = @props.text or sldr.poles?[pole_idx] or '+'
 
   if @local.text == 'undefined'
     @local.text = ''
-
 
   # The contenteditable label
   DIV
@@ -290,9 +281,9 @@ dom.BASIC_SLIDER_LABEL = ->
 
     onInput: @props.onInput or (e) => 
       sldr.poles ||= ['','']
-      old_text = sldr.poles[1]
+      old_text = sldr.poles[pole_idx]
       new_text = @refs.editor.getDOMNode().innerHTML
-      sldr.poles[1] = new_text
+      sldr.poles[pole_idx] = new_text
       save sldr
 
     onMouseEnter: =>
@@ -309,8 +300,9 @@ dom.BASIC_SLIDER_LABEL = ->
 
     onBlur: (e) => 
       @local.focused = false
-      @local.text = @props.text or sldr.poles?[1] or '+'
+      @local.text = sldr.poles?[pole_idx] or @props.text or '+'
       save @local 
+      save sldr
 
     dangerouslySetInnerHTML: if @local.text?.length > 0 then {__html: (if emojione? then emojione.unicodeToImage(@local.text) else @local.text)}
 
